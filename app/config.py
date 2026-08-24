@@ -18,10 +18,13 @@ from app.errors import ConfigurationError
 _LOG_LEVELS = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
 
 # AI provider -> (default model, OpenAI-compatible base URL, settings key field)
+# gemini-flash-latest is an alias that always tracks Google's current flash
+# model — pinned versions age out of the API (and their free-tier quotas vary
+# wildly: new flagship models may allow only ~20 free requests/day).
 AI_PROVIDER_DEFAULTS = {
     "openai": ("gpt-5-mini", None, "openai_api_key"),
     "gemini": (
-        "gemini-2.5-flash",
+        "gemini-flash-latest",
         "https://generativelanguage.googleapis.com/v1beta/openai/",
         "gemini_api_key",
     ),
