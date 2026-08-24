@@ -70,8 +70,14 @@ async def _run(settings: Settings) -> bool:
                         "Discord refused the connection: privileged intents missing. "
                         "Fix: https://discord.com/developers/applications -> your app "
                         "-> Bot -> enable BOTH 'Server Members Intent' and "
-                        "'Message Content Intent' -> restart."
+                        "'Message Content Intent'. Holding for 15 minutes before the "
+                        "next attempt (protects the daily login limit) — after "
+                        "flipping the toggles, run `docker compose restart bot` to "
+                        "reconnect immediately."
                     )
+                    # Each retry costs gateway IDENTIFYs (1000/day cap). A tight
+                    # container restart loop can exhaust the token in hours.
+                    await asyncio.sleep(900)
                 else:
                     log.error(
                         "Task %r exited with an error", task.get_name(), exc_info=exception
