@@ -9,9 +9,13 @@ from app.database.models.base import Base
 
 # Channel purposes the bot can be configured with, in display order.
 CHANNEL_KINDS = (
+    ("attendance_channel_id", "Attendance"),
+    ("briefing_channel_id", "Operation brief"),
     ("operations_channel_id", "Operations"),
     ("missions_channel_id", "Missions"),
     ("announcements_channel_id", "Announcements"),
+    ("general_channel_id", "General"),
+    ("operation_logs_channel_id", "Operation logs"),
     ("logs_channel_id", "Bot logs"),
     ("recruitment_channel_id", "Recruitment"),
     ("aar_channel_id", "After-action reports"),
@@ -52,6 +56,14 @@ class GuildConfiguration(Base):
     recruitment_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     aar_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     staff_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # Signup posts live here; the latest operation stays visible.
+    attendance_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # Full briefings (+ images) are posted here, one per operation.
+    briefing_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # Staff-only archive: finished/cancelled operations get logged here.
+    operation_logs_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # The server's general chat — announcements are mirrored here.
+    general_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     configured_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

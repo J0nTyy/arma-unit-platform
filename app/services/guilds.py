@@ -33,6 +33,10 @@ _UPDATABLE_FIELDS = {
     "recruitment_channel_id",
     "aar_channel_id",
     "staff_channel_id",
+    "attendance_channel_id",
+    "briefing_channel_id",
+    "operation_logs_channel_id",
+    "general_channel_id",
 }
 
 

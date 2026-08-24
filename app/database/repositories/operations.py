@@ -66,6 +66,20 @@ class OperationRepository:
         )
         return list(result.scalars())
 
+    async def list_unarchived_terminal(self) -> list[Operation]:
+        """Completed/cancelled operations whose posts still sit in the
+        attendance channel and are waiting to be moved to the logs."""
+        result = await self._session.execute(
+            select(Operation).where(
+                Operation.status.in_(
+                    (OperationStatus.COMPLETED.value, OperationStatus.CANCELLED.value)
+                ),
+                Operation.archived_at.is_(None),
+                Operation.message_id.is_not(None),
+            )
+        )
+        return list(result.scalars())
+
     # --- attendance ----------------------------------------------------------
 
     async def get_response(self, operation_id: int, user_id: int) -> OperationAttendance | None:

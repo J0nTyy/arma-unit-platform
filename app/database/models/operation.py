@@ -4,6 +4,7 @@ import enum
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     DateTime,
     ForeignKey,
@@ -90,9 +91,22 @@ class Operation(Base):
     status: Mapped[str] = mapped_column(String(20), default=OperationStatus.SCHEDULED.value)
     created_by: Mapped[int] = mapped_column(BigInteger)
 
-    # The operation post in the operations channel (set when published)
+    # The signup post in the attendance channel (set when published)
     channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    # The briefing messages in the briefing channel (needed for archiving)
+    brief_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    brief_message_ids: Mapped[list[int] | None] = mapped_column(JSON, nullable=True)
+
+    # Archiving lifecycle: completed ops are logged immediately; cancelled
+    # ones stay visible for 24h first. archived_at marks the move as done.
+    cancelled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Objectives rendered at creation time, so the post can be rebuilt on
     # every attendance click without a GitHub round-trip.

@@ -342,15 +342,14 @@ DYNAMIC_ITEMS = (AttendanceButton, RosterButton, OperationBriefButton, MissionAc
 
 
 def operation_post_view(operation: Operation) -> discord.ui.View | None:
-    """Buttons for the operation post, appropriate to its lifecycle state."""
-    if operation.status in (OperationStatus.CANCELLED.value, OperationStatus.COMPLETED.value):
+    """Buttons for the signup post: just the three attendance buttons while
+    signups are open. The roster is visible in the embed itself and the
+    briefing sits right above the post, so no extra buttons are needed."""
+    if operation.status != OperationStatus.OPEN.value:
         return None
     view = discord.ui.View(timeout=None)
-    if operation.status == OperationStatus.OPEN.value:
-        for status in ("attending", "maybe", "declined"):
-            view.add_item(AttendanceButton(operation.id, status))
-    view.add_item(RosterButton(operation.id))
-    view.add_item(OperationBriefButton(operation.id))
+    for status in ("attending", "maybe", "declined"):
+        view.add_item(AttendanceButton(operation.id, status))
     return view
 
 

@@ -1,34 +1,34 @@
-"""Guided operation scheduling: mission → date/time modal → preview → publish.
+"""Guided operation scheduling — zero typing.
 
-No ten-parameter commands: the mission comes from a select menu (or the
-Schedule button on a mission post), everything else from one modal, and the
-result is previewed before anything goes public.
+Flow: pick mission → pick date / hour / minute from select menus → preview →
+publish. The operation name comes straight from the mission file on GitHub.
+Publishing posts the formatted briefing (+ images) to the briefing channel
+and the signup post to the attendance channel, then announces it.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from datetime import date, datetime, timedelta, timezone
+from typing import TYPE_CHECKING, Awaitable, Callable
+from zoneinfo import ZoneInfo
 
 import discord
 
-import io
-
 from app.bot import embeds
-from app.bot.views.components import (
-    group_embeds,
-    operation_post_view,
-    respond_error,
-)
+from app.bot.operation_messages import announce_operation, post_briefing
+from app.bot.views.components import operation_post_view, respond_error
 from app.database.models.mission import MissionIndexEntry
 from app.errors import AppError, MissionNotFoundError, MissionsNotConfiguredError, ValidationError
 from app.services.operations import Roster
 
 if TYPE_CHECKING:
     from app.bot.bot import UnitBot
-    from app.database.models.operation import Operation
 
 log = logging.getLogger(__name__)
+
+_DAYS_AHEAD = 25  # Discord select menus allow max 25 options
+_MINUTE_OPTIONS = ("00", "15", "30", "45")
 
 
 async def _guild_timezone(bot: "UnitBot", guild: discord.Guild) -> str:
@@ -44,11 +44,116 @@ async def _guild_timezone(bot: "UnitBot", guild: discord.Guild) -> str:
     return configuration.timezone
 
 
+class DateTimePickerView(discord.ui.View):
+    """Date + time selection via select menus (Discord has no calendar
+    widget for bots, so this is the no-typing equivalent)."""
+
+    def __init__(
+        self,
+        tz_name: str,
+        on_confirm: Callable[[discord.Interaction, datetime], Awaitable[None]],
+        *,
+        confirm_label: str = "Confirm date & time",
+    ) -> None:
+        super().__init__(timeout=600)
+        self._tz = ZoneInfo(tz_name)
+        self._tz_name = tz_name
+        self._on_confirm = on_confirm
+        self._date: date | None = None
+        self._hour: int | None = None
+        self._minute: int | None = None
+
+        today = datetime.now(self._tz).date()
+        date_select = discord.ui.Select(
+            placeholder="📅 Pick the day…",
+            options=[
+                discord.SelectOption(
+                    label=(today + timedelta(days=offset)).strftime("%A %d %B"),
+                    value=(today + timedelta(days=offset)).isoformat(),
+                    description="today" if offset == 0 else None,
+                )
+                for offset in range(_DAYS_AHEAD)
+            ],
+            row=0,
+        )
+        date_select.callback = self._on_date  # type: ignore[method-assign]
+        self._date_select = date_select
+        self.add_item(date_select)
+
+        hour_select = discord.ui.Select(
+            placeholder=f"🕗 Pick the hour ({tz_name})…",
+            options=[
+                discord.SelectOption(label=f"{hour:02d}:00 – {hour:02d}:59", value=str(hour))
+                for hour in range(24)
+            ],
+            row=1,
+        )
+        hour_select.callback = self._on_hour  # type: ignore[method-assign]
+        self._hour_select = hour_select
+        self.add_item(hour_select)
+
+        minute_select = discord.ui.Select(
+            placeholder="⏱️ Pick the minutes…",
+            options=[discord.SelectOption(label=f":{m}", value=m) for m in _MINUTE_OPTIONS],
+            row=2,
+        )
+        minute_select.callback = self._on_minute  # type: ignore[method-assign]
+        self._minute_select = minute_select
+        self.add_item(minute_select)
+
+        confirm = discord.ui.Button(
+            label=confirm_label, emoji="✅", style=discord.ButtonStyle.success, row=3
+        )
+        confirm.callback = self._confirm  # type: ignore[method-assign]
+        self.add_item(confirm)
+
+    async def _on_date(self, interaction: discord.Interaction) -> None:
+        self._date = date.fromisoformat(self._date_select.values[0])
+        await interaction.response.defer()
+
+    async def _on_hour(self, interaction: discord.Interaction) -> None:
+        self._hour = int(self._hour_select.values[0])
+        await interaction.response.defer()
+
+    async def _on_minute(self, interaction: discord.Interaction) -> None:
+        self._minute = int(self._minute_select.values[0])
+        await interaction.response.defer()
+
+    async def _confirm(self, interaction: discord.Interaction) -> None:
+        try:
+            missing = [
+                label
+                for label, value in (
+                    ("day", self._date), ("hour", self._hour), ("minutes", self._minute)
+                )
+                if value is None
+            ]
+            if missing:
+                await interaction.response.send_message(
+                    f"⚠️ Still missing: **{', '.join(missing)}** — pick from the menus above.",
+                    ephemeral=True,
+                )
+                return
+            local = datetime(
+                self._date.year, self._date.month, self._date.day,
+                self._hour, self._minute, tzinfo=self._tz,
+            )
+            when_utc = local.astimezone(timezone.utc)
+            if when_utc <= datetime.now(timezone.utc):
+                await interaction.response.send_message(
+                    "⚠️ That time is in the past — pick a future time.", ephemeral=True
+                )
+                return
+            self.stop()
+            await self._on_confirm(interaction, when_utc)
+        except Exception as error:  # noqa: BLE001
+            await respond_error(interaction, error)
+
+
 async def start_schedule_flow(
     interaction: discord.Interaction, mission_id: str | None = None
 ) -> None:
-    """First response to the interaction: either the details modal (mission
-    known) or an ephemeral mission picker."""
+    """First response: mission picker (or straight to the date picker)."""
     bot: "UnitBot" = interaction.client  # type: ignore[assignment]
     if bot.mission_service is None:
         raise MissionsNotConfiguredError()
@@ -59,7 +164,7 @@ async def start_schedule_flow(
         entry = await bot.mission_service.get_mission(mission_id)
         if entry is None:
             raise MissionNotFoundError(mission_id)
-        await interaction.response.send_modal(OperationDetailsModal(bot, entry, tz_name))
+        await _send_datetime_picker(interaction, bot, entry, tz_name)
         return
 
     entries = [
@@ -77,6 +182,23 @@ async def start_schedule_flow(
         view=MissionPickView(bot, entries, tz_name),
         ephemeral=True,
     )
+
+
+async def _send_datetime_picker(
+    interaction: discord.Interaction, bot: "UnitBot", entry: MissionIndexEntry, tz_name: str
+) -> None:
+    async def on_confirm(picker_interaction: discord.Interaction, when_utc: datetime) -> None:
+        await _create_and_preview(picker_interaction, bot, entry, tz_name, when_utc)
+
+    content = (
+        f"**Scheduling {entry.mission_id} — {entry.name}**\n"
+        f"Pick the day and start time (unit timezone: **{tz_name}**):"
+    )
+    view = DateTimePickerView(tz_name, on_confirm)
+    if interaction.response.is_done():
+        await interaction.edit_original_response(content=content, view=view, embed=None)
+    else:
+        await interaction.response.send_message(content, view=view, ephemeral=True)
 
 
 class MissionPickView(discord.ui.View):
@@ -106,76 +228,61 @@ class MissionPickView(discord.ui.View):
     async def _on_pick(self, interaction: discord.Interaction) -> None:
         try:
             entry = self._by_id[self._select.values[0]]
-            await interaction.response.send_modal(
-                OperationDetailsModal(self._bot, entry, self._tz_name)
-            )
+            await interaction.response.defer()
+            await _send_datetime_picker(interaction, self._bot, entry, self._tz_name)
         except Exception as error:  # noqa: BLE001
             await respond_error(interaction, error)
 
 
-class OperationDetailsModal(discord.ui.Modal):
-    def __init__(self, bot: "UnitBot", entry: MissionIndexEntry, tz_name: str) -> None:
-        super().__init__(title=f"Schedule {entry.mission_id}"[:45])
-        self._bot = bot
-        self._entry = entry
-        self._tz_name = tz_name
-        self.date_input = discord.ui.TextInput(
-            label=f"Date (DD/MM/YYYY, {tz_name})", placeholder="05/09/2026", max_length=10
-        )
-        self.time_input = discord.ui.TextInput(
-            label="Time (24h HH:MM)", placeholder="20:00", max_length=5
-        )
-        self.name_input = discord.ui.TextInput(
-            label="Operation name (anything you like)", default=entry.name, max_length=100
-        )
-        for item in (self.date_input, self.time_input, self.name_input):
-            self.add_item(item)
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
+async def _create_and_preview(
+    interaction: discord.Interaction,
+    bot: "UnitBot",
+    entry: MissionIndexEntry,
+    tz_name: str,
+    when_utc: datetime,
+) -> None:
+    try:
+        await interaction.response.defer(ephemeral=True)
+        objectives_text = None
         try:
-            await interaction.response.defer(ephemeral=True, thinking=True)
-            bot = self._bot
-            service = bot.operation_service
-            when_utc = service.parse_local_datetime(
-                self.date_input.value, self.time_input.value, self._tz_name
-            )
-            objectives_text = None
-            try:
-                objectives = await bot.mission_service.get_objectives(self._entry.mission_id)  # type: ignore[union-attr]
-                objectives_text = embeds.render_objectives(objectives)
-            except AppError:
-                pass  # operation still schedulable without the objectives block
+            objectives = await bot.mission_service.get_objectives(entry.mission_id)  # type: ignore[union-attr]
+            objectives_text = embeds.render_objectives(objectives)
+        except AppError:
+            pass  # operation still schedulable without the objectives block
 
-            operation = await service.create_operation(
-                guild_id=interaction.guild.id,  # type: ignore[union-attr]
-                mission_id=self._entry.mission_id,
-                mission_name=self._entry.name,
-                mission_status=self._entry.status,
-                scheduled_at_utc=when_utc,
-                tz_name=self._tz_name,
-                created_by=interaction.user.id,
-                name=self.name_input.value,
+        # The operation name comes straight from the mission file.
+        operation = await bot.operation_service.create_operation(
+            guild_id=interaction.guild.id,  # type: ignore[union-attr]
+            mission_id=entry.mission_id,
+            mission_name=entry.name,
+            mission_status=entry.status,
+            scheduled_at_utc=when_utc,
+            tz_name=tz_name,
+            created_by=interaction.user.id,
+        )
+        if objectives_text:
+            operation = await bot.operation_service.set_objectives_snapshot(
+                operation.id, objectives_text
             )
-            if objectives_text:
-                operation = await service.set_objectives_snapshot(operation.id, objectives_text)
 
-            preview = embeds.operation_embed(operation, self._entry, Roster([], [], [], []))
-            configuration = await bot.guild_service.get_configuration(interaction.guild.id)  # type: ignore[union-attr]
-            channel_id = configuration.operations_channel_id if configuration else None
+        preview = embeds.operation_embed(operation, entry, Roster([], [], [], []))
+        configuration = await bot.guild_service.get_configuration(interaction.guild.id)  # type: ignore[union-attr]
+        att = configuration.attendance_channel_id if configuration else None
+        brief = configuration.briefing_channel_id if configuration else None
+        if att and brief:
+            hint = f"Preview — briefing goes to <#{brief}>, signups to <#{att}>. Publish?"
+        else:
             hint = (
-                f"Preview — publish to <#{channel_id}>?"
-                if channel_id
-                else "Preview — ⚠️ **no operations channel configured** (`/unit setup`). "
-                "Configure it, then press Publish."
+                "Preview — ⚠️ **attendance/briefing channels not configured** "
+                "(`/unit setup` → create recommended channels), then press Publish."
             )
-            await interaction.followup.send(
-                hint,
-                embed=preview,
-                view=PublishOperationView(bot, operation.id),
-                ephemeral=True,
-            )
-        except Exception as error:  # noqa: BLE001
-            await respond_error(interaction, error)
+        await interaction.edit_original_response(
+            content=hint,
+            embed=preview,
+            view=PublishOperationView(bot, operation.id),
+        )
+    except Exception as error:  # noqa: BLE001
+        await respond_error(interaction, error)
 
 
 class PublishOperationView(discord.ui.View):
@@ -184,81 +291,62 @@ class PublishOperationView(discord.ui.View):
         self._bot = bot
         self._operation_id = operation_id
 
-    @discord.ui.button(label="Publish to operations channel", emoji="📣",
-                       style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Publish", emoji="📣", style=discord.ButtonStyle.success)
     async def publish(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         try:
             await interaction.response.defer(ephemeral=True, thinking=True)
             bot = self._bot
             operation = await bot.operation_service.get(self._operation_id)
             configuration = await bot.guild_service.get_configuration(operation.guild_id)
-            channel_id = configuration.operations_channel_id if configuration else None
-            if channel_id is None:
+            attendance_id = configuration.attendance_channel_id if configuration else None
+            briefing_id = configuration.briefing_channel_id if configuration else None
+            if attendance_id is None or briefing_id is None:
                 await interaction.followup.send(
-                    "⚠️ No operations channel configured — run `/unit setup` first.",
+                    "⚠️ The **Attendance** and **Operation brief** channels aren't "
+                    "configured — run `/unit setup` (it can create them for you).",
                     ephemeral=True,
                 )
                 return
-            channel = bot.get_channel(channel_id) or await bot.fetch_channel(channel_id)
+            attendance_channel = bot.get_channel(attendance_id) or await bot.fetch_channel(
+                attendance_id
+            )
+            briefing_channel = bot.get_channel(briefing_id) or await bot.fetch_channel(
+                briefing_id
+            )
             mission = await bot.mission_service.get_mission(operation.mission_id) if bot.mission_service else None  # type: ignore[union-attr]
 
-            notes: list[str] = []
             try:
-                # 1) The briefing goes in first, directly above the signup post.
-                await self._post_brief(channel, operation, notes)
-                # 2) Then the operation post with the attendance UI.
+                # 1) Briefing (+ images) into the briefing channel.
+                brief_ids = await post_briefing(bot, briefing_channel, operation)
+                # 2) Signup post into the attendance channel.
                 operation.status = "open"  # provisional look; persisted below
-                message = await channel.send(  # type: ignore[union-attr]
+                message = await attendance_channel.send(  # type: ignore[union-attr]
                     embed=embeds.operation_embed(operation, mission, Roster([], [], [], [])),
                     view=operation_post_view(operation),
                 )
             except discord.Forbidden:
                 await interaction.followup.send(
-                    f"⚠️ I can't post in <#{channel_id}> — fix my channel permissions and retry.",
+                    "⚠️ I can't post in the attendance/briefing channels — "
+                    "fix my permissions there and retry.",
                     ephemeral=True,
                 )
                 return
-            await bot.operation_service.mark_published(
-                self._operation_id, channel.id, message.id
+            operation = await bot.operation_service.mark_published(
+                self._operation_id, attendance_channel.id, message.id
             )
+            if brief_ids:
+                await bot.operation_service.set_brief_messages(
+                    self._operation_id, briefing_channel.id, brief_ids
+                )
+            # 3) Tell the unit.
+            await announce_operation(bot, operation, "published")
             self.stop()
-            suffix = ("\n" + "\n".join(notes)) if notes else ""
             await interaction.followup.send(
-                f"📣 Operation published — signups are open: {message.jump_url}{suffix}",
+                f"📣 Operation published and announced — signups open: {message.jump_url}",
                 ephemeral=True,
             )
         except Exception as error:  # noqa: BLE001
             await respond_error(interaction, error)
-
-    async def _post_brief(self, channel, operation, notes: list[str]) -> None:
-        """Post the pretty briefing (and any mission images) above the signup post."""
-        bot = self._bot
-        if bot.mission_service is None:
-            return
-        brief_groups: list[list[discord.Embed]] = []
-        try:
-            content = await bot.mission_service.get_brief(operation.mission_id)
-            brief_groups = group_embeds(embeds.brief_embeds(operation.name, content))
-        except AppError:
-            notes.append("⚠️ Briefing could not be fetched — post it manually if needed.")
-        files: list[discord.File] = []
-        try:
-            files = [
-                discord.File(io.BytesIO(data), filename=filename)
-                for filename, data in await bot.mission_service.get_attachments(
-                    operation.mission_id
-                )
-            ]
-        except AppError:
-            notes.append("⚠️ Mission images could not be fetched.")
-
-        for index, batch in enumerate(brief_groups):
-            last = index == len(brief_groups) - 1
-            await channel.send(embeds=batch, files=files if last else [])
-            if last:
-                files = []
-        if files:  # images but no readable brief
-            await channel.send(files=files)
 
     @discord.ui.button(label="Discard", emoji="🗑️", style=discord.ButtonStyle.danger)
     async def discard(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:

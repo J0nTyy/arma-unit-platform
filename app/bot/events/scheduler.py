@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import discord
 from discord.ext import commands, tasks
 
+from app.bot.operation_messages import archive_operation
 from app.bot.views.components import refresh_operation_message
 from app.services.operations import DueReminder
 
@@ -46,6 +47,9 @@ class SchedulerEvents(commands.Cog):
             await refresh_operation_message(self.bot, operation)
         for reminder in result.reminders:
             await self._deliver(reminder)
+        for operation in result.to_archive:
+            if await archive_operation(self.bot, operation):
+                await self.bot.operation_service.mark_archived(operation.id)
 
     @tick.before_loop
     async def before_tick(self) -> None:

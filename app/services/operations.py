@@ -73,7 +73,8 @@ class DueReminder:
 @dataclass(frozen=True)
 class TickResult:
     reminders: tuple[DueReminder, ...] = ()
-    activated: tuple[Operation, ...] = ()  # flipped to ACTIVE at start time
+    activated: tuple[Operation, ...] = ()   # flipped to ACTIVE at start time
+    to_archive: tuple[Operation, ...] = ()  # posts due to move to the logs channel
 
 
 @dataclass(frozen=True)
@@ -227,7 +228,21 @@ class OperationService:
         return await self._update(operation_id, objectives_snapshot=text)
 
     async def transition(self, operation_id: int, new_status: OperationStatus) -> Operation:
-        return await self._update(operation_id, status_to=new_status)
+        fields: dict[str, object] = {}
+        if new_status is OperationStatus.CANCELLED:
+            # Starts the 24h clock before the post is moved to the logs channel.
+            fields["cancelled_at"] = datetime.now(timezone.utc)
+        return await self._update(operation_id, status_to=new_status, **fields)
+
+    async def set_brief_messages(
+        self, operation_id: int, channel_id: int, message_ids: list[int]
+    ) -> Operation:
+        return await self._update(
+            operation_id, brief_channel_id=channel_id, brief_message_ids=message_ids
+        )
+
+    async def mark_archived(self, operation_id: int) -> Operation:
+        return await self._update(operation_id, archived_at=datetime.now(timezone.utc))
 
     async def reschedule(
         self, operation_id: int, scheduled_at_utc: datetime
@@ -429,11 +444,20 @@ class OperationService:
         now = _utc(now or datetime.now(timezone.utc))
         reminders: list[DueReminder] = []
         activated: list[Operation] = []
+        to_archive: list[Operation] = []
         try:
             async with self._database.session() as session, session.begin():
                 repository = OperationRepository(session)
                 configurations: dict[int, GuildConfiguration | None] = {}
                 guild_repo = GuildConfigurationRepository(session)
+
+                for operation in await repository.list_unarchived_terminal():
+                    if operation.status == OperationStatus.COMPLETED.value:
+                        to_archive.append(operation)
+                    elif operation.cancelled_at is not None and _utc(
+                        operation.cancelled_at
+                    ) <= now - timedelta(hours=24):
+                        to_archive.append(operation)
 
                 for operation in await repository.list_needing_tick(now):
                     scheduled = _utc(operation.scheduled_at)
@@ -483,4 +507,8 @@ class OperationService:
         except SQLAlchemyError as exc:
             log.exception("Scheduler tick failed")
             raise DatabaseError("tick failed") from exc
-        return TickResult(reminders=tuple(reminders), activated=tuple(activated))
+        return TickResult(
+            reminders=tuple(reminders),
+            activated=tuple(activated),
+            to_archive=tuple(to_archive),
+        )

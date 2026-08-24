@@ -158,13 +158,18 @@ def mission_line(entry: MissionIndexEntry) -> str:
 # --- operations ---------------------------------------------------------------
 
 
-def _attendance_column(records: list, cap: int = 12) -> str:
+def _mention_rows(records: list, per_row: int = 3, cap: int = 30) -> str:
+    """Mentions laid out in airy rows instead of cramped columns."""
     if not records:
-        return "*—*"
-    lines = [f"<@{record.user_id}>" for record in records[:cap]]
+        return "*No responses yet*"
+    mentions = [f"<@{record.user_id}>" for record in records[:cap]]
+    rows = [
+        "  ·  ".join(mentions[index:index + per_row])
+        for index in range(0, len(mentions), per_row)
+    ]
     if len(records) > cap:
-        lines.append(f"*+{len(records) - cap} more*")
-    return "\n".join(lines)
+        rows.append(f"*+{len(records) - cap} more*")
+    return "\n".join(rows)
 
 
 def operation_embed(
@@ -207,28 +212,28 @@ def operation_embed(
     maybe = roster.maybe if roster else []
     declined = roster.declined if roster else []
     embed.add_field(
-        name=f"{DIVIDER}\n🪖 ATTENDANCE — {len(attending)} confirmed",
-        value="​",
+        name="​",
+        value=f"{DIVIDER}\n**🪖  ATTENDANCE**   ·   {len(attending)} confirmed",
         inline=False,
     )
     embed.add_field(
-        name=f"🟢 Attending ({len(attending)})",
-        value=_attendance_column(attending),
-        inline=True,
+        name=f"🟢  Attending — {len(attending)}",
+        value=_mention_rows(attending),
+        inline=False,
     )
     embed.add_field(
-        name=f"🟡 Maybe ({len(maybe)})", value=_attendance_column(maybe), inline=True
+        name=f"🟡  Maybe — {len(maybe)}", value=_mention_rows(maybe), inline=False
     )
     embed.add_field(
-        name=f"🔴 Can't attend ({len(declined)})",
-        value=_attendance_column(declined),
-        inline=True,
+        name=f"🔴  Can't attend — {len(declined)}",
+        value=_mention_rows(declined),
+        inline=False,
     )
     if roster and roster.waitlist:
         waitlist = "\n".join(
             f"{i + 1}. <@{record.user_id}>" for i, record in enumerate(roster.waitlist[:10])
         )
-        embed.add_field(name=f"⏳ Waitlist ({len(roster.waitlist)})", value=waitlist, inline=False)
+        embed.add_field(name=f"⏳ Waitlist — {len(roster.waitlist)}", value=waitlist, inline=False)
 
     maker = f" · made by {mission.mission_maker}" if mission else ""
     embed.set_footer(
@@ -360,6 +365,68 @@ def brief_embeds(title: str, content: str, *, include_maker_notes: bool = False)
             size += len(chunk) + len(name)
     flush()
     return embeds or [discord.Embed(title=f"📖  {title.upper()} — BRIEFING", colour=NAVY)]
+
+
+_MESSAGE_LIMIT = 1900  # headroom under Discord's 2000-char message cap
+
+
+def brief_message_chunks(
+    title: str, content: str, *, include_maker_notes: bool = False
+) -> list[str]:
+    """Render a briefing as plain formatted messages (not embeds).
+
+    Discord renders the #/## headings natively, so the result reads like a
+    document. Sections get themed emoji; 'Notes for Mission Makers' is
+    omitted from player-facing posts. Returns 1..n message strings, each
+    under the 2000-character message limit.
+    """
+    content = content.strip()
+    content = re.sub(r"^#\s+.+?\n", "", content, count=1)  # title line -> our header
+
+    pieces: list[str] = [f"# 📖  {title.upper()} — OPERATION BRIEFING"]
+    last_end = 0
+    last_heading: str | None = None
+
+    def emit(heading: str | None, body: str) -> None:
+        body = body.strip()
+        if not body:
+            return
+        if heading is None:
+            pieces.append(body)
+            return
+        if heading.strip().lower().startswith(_MAKER_NOTES_HEADING) and not include_maker_notes:
+            return
+        emoji = _BRIEF_SECTION_EMOJI.get(heading.strip().lower(), "▫️")
+        pieces.append(f"## {emoji}  {heading.upper()}\n{body}")
+
+    for match in _SECTION_RE.finditer(content):
+        emit(last_heading, content[last_end:match.start()])
+        last_heading = match.group("heading")
+        last_end = match.end()
+    emit(last_heading, content[last_end:])
+
+    # Pack sections into as few messages as possible, splitting only when a
+    # single section itself exceeds the message limit.
+    chunks: list[str] = []
+    current = ""
+    for piece in pieces:
+        while len(piece) > _MESSAGE_LIMIT:  # oversized single section
+            cut = piece.rfind("\n", 0, _MESSAGE_LIMIT)
+            cut = cut if cut > 0 else _MESSAGE_LIMIT
+            if current:
+                chunks.append(current)
+                current = ""
+            chunks.append(piece[:cut])
+            piece = piece[cut:].lstrip("\n")
+        candidate = f"{current}\n\n{piece}" if current else piece
+        if len(candidate) > _MESSAGE_LIMIT:
+            chunks.append(current)
+            current = piece
+        else:
+            current = candidate
+    if current.strip():
+        chunks.append(current)
+    return chunks or [f"# 📖  {title.upper()} — OPERATION BRIEFING"]
 
 
 # --- validation ----------------------------------------------------------------

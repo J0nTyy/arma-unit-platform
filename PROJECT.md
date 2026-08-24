@@ -3,11 +3,13 @@
 Living architecture document. The [README](README.md) covers quickstart/setup;
 this file explains how the system is built and why.
 
-**Version 0.3.1 — Phase 3 complete, plus post-phase UX refinements:** no
-member limits or per-mission mod lists (unit-wide standard modset), free-form
-operation names, three-column attendance board with member mentions, the
-briefing (plus mission `images/`) posted above every signup post, and
-self-explaining channel topics on creation.
+**Version 0.4.0 — Phase 3 complete, plus operation-flow overhaul:**
+select-menu date/time picker (no typing), operation names taken from the
+mission file, briefings as formatted plain messages with images beneath,
+dedicated **#attendance** / **#operation-brief** channels, staff-only
+**#operation-logs** archive (completed ops move immediately, cancelled after
+24h), @everyone announcements on publish/cancel/reschedule (announcements +
+general), and an airier stacked attendance board.
 
 ---
 
@@ -105,9 +107,13 @@ URL if missing).
 
 | Channel | Purpose | Who can post | What the bot does there |
 | --- | --- | --- | --- |
-| `#operations` | Scheduled operations | bot (members read) | Briefing + images, signup post with attendance buttons, reminders, waitlist promotions |
+| `#attendance` | Signup posts | bot (members read) | The signup post with attendance buttons, reminders, waitlist promotions; cleaned up after archiving |
+| `#operation-brief` | Briefings | bot (members read) | Formatted briefing messages + mission images for posted operations |
+| `#operation-logs` | Staff archive | staff only | Final attendance board of completed/cancelled operations |
+| `#operations` | Ops chatter | everyone reads, members chat | Nothing automated — kept free for discussion |
 | `#missions` | Mission library | bot (members read) | Published mission cards with Brief/Objectives/Schedule buttons, refreshed on `/unit sync` |
-| `#announcements` | Unit-wide announcements | bot + staff | Reserved for future automated announcements |
+| `#announcements` | Unit-wide announcements | bot + staff | @everyone notices when operations are posted/cancelled/rescheduled |
+| General (existing chat) | Server general | everyone | Mirror of operation announcements (configured in setup; falls back to the system channel) |
 | `#recruitment` | New-player info | everyone | Reserved for future onboarding features |
 | `#after-action-reports` | AARs for completed ops | bot (members read) | Reserved for the future AAR system |
 | `#bot-logs` | Bot activity log | staff only | Reserved for staff-visible bot event logging |
@@ -159,11 +165,26 @@ change without touching UI code.
 
 ### Operation publishing layout
 
-Publishing posts **two things** to the operations channel: first the full
-briefing — rendered from the maker's plain `brief.md` into sectioned,
-emoji-titled embeds (the *Notes for Mission Makers* section is omitted),
-with any `images/` files attached — and directly below it, the operation
-post with the attendance board and buttons.
+Scheduling is fully click-based: mission select → **date/hour/minute select
+menus** (Discord offers bots no calendar widget; selects are the no-typing
+equivalent) → preview → publish. The operation name always comes from the
+mission file on GitHub.
+
+Publishing then posts to **two channels**: the full briefing goes to
+`#operation-brief` as formatted plain messages (Discord renders the
+headings; sections get themed emoji; *Notes for Mission Makers* is omitted)
+with `images/` files attached beneath, and the signup post goes to
+`#attendance`. An @everyone announcement lands in the announcements channel
+and the configured general channel. Cancel/reschedule announce the same way.
+
+### Post archiving
+
+Signup and briefing posts don't pile up: when an operation is **completed**
+its posts are immediately re-logged to the staff-only `#operation-logs`
+(final attendance board) and deleted from the live channels; **cancelled**
+operations stay visible for 24 hours first. Reschedules edit the existing
+post in place, so there is nothing stale to archive. Archiving is driven by
+the same database-backed scheduler as reminders and survives restarts.
 
 ## 7. Reminders
 
@@ -200,6 +221,8 @@ buttons (schedule is maker-gated at click time).
   `mission_publications`
 - 0004: mission player limits and `required_mods` dropped from the index;
   `operations.max_players` becomes nullable (NULL = no member limit)
+- 0005: guild channels for attendance/briefing/operation-logs/general;
+  operation archiving state (cancelled_at, archived_at, brief message refs)
 
 ## 10. Known limitations
 

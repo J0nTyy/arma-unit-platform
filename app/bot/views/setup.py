@@ -23,10 +23,15 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+# general_channel_id has no default name on purpose: servers already have a
+# general chat — admins point the bot at it instead of creating a new one.
 DEFAULT_CHANNEL_NAMES = {
+    "attendance_channel_id": "attendance",
+    "briefing_channel_id": "operation-brief",
     "operations_channel_id": "operations",
     "missions_channel_id": "missions",
     "announcements_channel_id": "announcements",
+    "operation_logs_channel_id": "operation-logs",
     "logs_channel_id": "bot-logs",
     "recruitment_channel_id": "recruitment",
     "aar_channel_id": "after-action-reports",
@@ -35,26 +40,36 @@ DEFAULT_CHANNEL_NAMES = {
 
 # Set as the channel topic on creation so every channel explains itself.
 DEFAULT_CHANNEL_TOPICS = {
-    "operations_channel_id": (
-        "🎯 Scheduled operations. The bot posts each operation's briefing and a "
-        "signup post — answer with the Attend/Maybe/Can't buttons."
+    "attendance_channel_id": (
+        "🪖 Operation signups. The latest operation's post lives here — answer with "
+        "the Attend/Maybe/Can't buttons. Finished operations move to the logs."
     ),
+    "briefing_channel_id": (
+        "📖 Operation briefings and maps for the currently posted operations."
+    ),
+    "operations_channel_id": "🎯 Operations chatter — planning, questions, coordination.",
     "missions_channel_id": (
         "🪖 The unit's mission library. Mission makers publish missions here via "
         "/mission publish; buttons open the brief and objectives."
     ),
     "announcements_channel_id": "📢 Unit-wide announcements from staff and the unit bot.",
+    "operation_logs_channel_id": (
+        "📦 Staff archive: completed and cancelled operations are logged here with "
+        "their final attendance and briefing."
+    ),
     "logs_channel_id": "🤖 Bot activity log for staff — sync results, errors, admin events.",
     "recruitment_channel_id": "📝 New-player information and recruitment.",
     "aar_channel_id": "📊 After-action reports for completed operations.",
     "staff_channel_id": "🛡️ Staff coordination and staff-only bot notifications.",
 }
-_PRIVATE_CHANNELS = {"logs_channel_id", "staff_channel_id"}
+_PRIVATE_CHANNELS = {"logs_channel_id", "staff_channel_id", "operation_logs_channel_id"}
 _READONLY_CHANNELS = {
     "operations_channel_id",
     "missions_channel_id",
     "announcements_channel_id",
     "aar_channel_id",
+    "attendance_channel_id",
+    "briefing_channel_id",
 }
 
 COMMON_TIMEZONES = (
@@ -75,6 +90,7 @@ def invite_url(application_id: int) -> str:
     permissions = discord.Permissions(
         view_channel=True, send_messages=True, embed_links=True, attach_files=True,
         read_message_history=True, manage_channels=True, manage_roles=True,
+        manage_messages=True, mention_everyone=True,
     )
     return (
         "https://discord.com/api/oauth2/authorize"
@@ -334,6 +350,8 @@ def build_channel_plan(
     """Decide which channels to create vs reuse — never duplicates."""
     plan = ChannelPlan()
     for key, _label in CHANNEL_KINDS:
+        if key not in DEFAULT_CHANNEL_NAMES:
+            continue  # e.g. General: selected in setup, never auto-created
         configured_id = getattr(configuration, key, None) if configuration else None
         if configured_id and guild.get_channel(configured_id) is not None:
             continue  # already configured and the channel still exists
@@ -372,7 +390,8 @@ class ConfirmChannelCreationView(discord.ui.View):
                 for key, name in self._plan.to_create:
                     overwrites: dict = {
                         me: discord.PermissionOverwrite(
-                            view_channel=True, send_messages=True, embed_links=True
+                            view_channel=True, send_messages=True, embed_links=True,
+                            attach_files=True, manage_messages=True, mention_everyone=True,
                         )
                     }
                     if key in _PRIVATE_CHANNELS:
