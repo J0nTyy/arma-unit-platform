@@ -18,6 +18,7 @@ from app.config import Settings
 from app.database import Database
 from app.integrations.ai import AIChatClient
 from app.integrations.github import GitHubClient
+from app.integrations.sheets import SheetsClient
 from app.services import (
     AssistantService,
     AttendanceService,
@@ -28,6 +29,7 @@ from app.services import (
     OperationService,
     PlayerService,
     PublicationService,
+    SheetExportService,
     StatusService,
 )
 from app.services.assistant import load_personality
@@ -73,6 +75,21 @@ class UnitBot(commands.Bot):
         self.player_service = PlayerService(database)
         self.attendance_service = AttendanceService(database)
         self.memory_service = MemoryService(database)
+
+        # Google Sheets export is optional; /unit sheets explains setup.
+        self.sheets_service: SheetExportService | None = None
+        if settings.sheets_configured:
+            try:
+                self.sheets_service = SheetExportService(
+                    database,
+                    SheetsClient(
+                        settings.google_sheets_credentials.get_secret_value(),  # type: ignore[union-attr]
+                        settings.google_sheets_spreadsheet_id,  # type: ignore[arg-type]
+                    ),
+                )
+                log.info("Google Sheets export enabled")
+            except Exception:  # noqa: BLE001 — bad credentials must not kill the bot
+                log.exception("Google Sheets misconfigured — export disabled")
 
         # Mission repository integration is optional; /mission commands explain
         # the required setup when it is not configured.

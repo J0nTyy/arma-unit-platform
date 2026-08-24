@@ -19,6 +19,8 @@ dependencies = [
     # AI assistant — one SDK for every OpenAI-compatible provider (OpenAI,
     # Gemini's compatibility endpoint, and others via AI_BASE_URL)
     "openai>=1.60",
+    # Google Sheets export (unit data mirrored to a staff spreadsheet)
+    "gspread>=6.0",
     # Database
     "sqlalchemy[asyncio]>=2.0.36",
     "asyncpg>=0.30",         # PostgreSQL (production)

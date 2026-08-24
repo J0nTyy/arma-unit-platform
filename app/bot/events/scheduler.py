@@ -36,6 +36,7 @@ class SchedulerEvents(commands.Cog):
     def __init__(self, bot: "UnitBot") -> None:
         self.bot = bot
         self._next_chatter: dict[int, float] = {}  # guild_id -> monotonic deadline
+        self._next_sheets: dict[int, float] = {}   # guild_id -> monotonic deadline
 
     async def cog_load(self) -> None:
         self.tick.start()
@@ -62,6 +63,10 @@ class SchedulerEvents(commands.Cog):
             await self._chatter_pass()
         except Exception:  # noqa: BLE001 — chatter must never break the scheduler
             log.exception("Chatter pass failed")
+        try:
+            await self._sheets_pass()
+        except Exception:  # noqa: BLE001
+            log.exception("Sheets pass failed")
 
     async def _chatter_pass(self) -> None:
         """Occasional in-character message in the general channel (opt-in)."""
@@ -118,6 +123,24 @@ class SchedulerEvents(commands.Cog):
         self._next_chatter[guild_id] = time.monotonic() + random.randint(
             _CHATTER_MIN_SECONDS, _CHATTER_MAX_SECONDS
         )
+
+    async def _sheets_pass(self) -> None:
+        """Daily automatic spreadsheet refresh (first run ~10min after boot)."""
+        if self.bot.sheets_service is None:
+            return
+        for guild in self.bot.guilds:
+            deadline = self._next_sheets.get(guild.id)
+            if deadline is None:
+                self._next_sheets[guild.id] = time.monotonic() + 600
+                continue
+            if time.monotonic() < deadline:
+                continue
+            self._next_sheets[guild.id] = time.monotonic() + 24 * 3600
+            try:
+                results = await self.bot.sheets_service.export_all(guild.id)
+                log.info("Daily sheets export for guild %s: %s", guild.id, results)
+            except Exception:  # noqa: BLE001 — retry tomorrow
+                log.exception("Daily sheets export failed for guild %s", guild.id)
 
     @tick.before_loop
     async def before_tick(self) -> None:

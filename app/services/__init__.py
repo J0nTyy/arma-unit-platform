@@ -18,6 +18,7 @@ from app.services.operations import (
     TickResult,
 )
 from app.services.publishing import PublicationService
+from app.services.sheets_export import SheetExportService
 from app.services.status import StatusReport, StatusService
 
 __all__ = [
@@ -37,6 +38,7 @@ __all__ = [
     "ProfileSummary",
     "PublicationService",
     "Roster",
+    "SheetExportService",
     "StatusReport",
     "StatusService",
     "SyncFailure",

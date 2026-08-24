@@ -89,6 +89,16 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     gemini_api_key: SecretStr | None = None
 
+    # Google Sheets export (optional). Credentials = the full service-account
+    # JSON pasted as ONE line; the spreadsheet must be shared with the
+    # service account's email as Editor.
+    google_sheets_credentials: SecretStr | None = None
+    google_sheets_spreadsheet_id: str | None = None
+
+    @property
+    def sheets_configured(self) -> bool:
+        return bool(self.google_sheets_credentials and self.google_sheets_spreadsheet_id)
+
     @property
     def resolved_ai_model(self) -> str:
         return self.ai_model or AI_PROVIDER_DEFAULTS[self.ai_provider][0]
@@ -118,6 +128,8 @@ class Settings(BaseSettings):
         "gemini_api_key",
         "ai_model",
         "ai_base_url",
+        "google_sheets_credentials",
+        "google_sheets_spreadsheet_id",
         mode="before",
     )
     @classmethod

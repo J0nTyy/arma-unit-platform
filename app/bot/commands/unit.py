@@ -151,6 +151,25 @@ class UnitCog(commands.Cog):
             embed=embed, view=ForgetMemoryView(self.bot, memories), ephemeral=True
         )
 
+    @unit.command(name="sheets", description="Export unit data to the Google spreadsheet now")
+    @require(PermissionLevel.STAFF)
+    async def unit_sheets(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        assert interaction.guild is not None
+        if self.bot.sheets_service is None:
+            await interaction.followup.send(
+                "⚠️ Google Sheets isn't configured — set GOOGLE_SHEETS_CREDENTIALS "
+                "and GOOGLE_SHEETS_SPREADSHEET_ID in `.env` (see README).",
+                ephemeral=True,
+            )
+            return
+        results = await self.bot.sheets_service.export_all(interaction.guild.id)
+        summary = " · ".join(f"{tab}: {count}" for tab, count in results.items())
+        await interaction.followup.send(
+            f"📊 Spreadsheet updated — {summary}\n{self.bot.sheets_service.url}",
+            ephemeral=True,
+        )
+
     @unit.command(name="diagnostics", description="Bot, database and repository health")
     @require(PermissionLevel.STAFF)
     async def unit_diagnostics(self, interaction: discord.Interaction) -> None:
@@ -197,6 +216,15 @@ class UnitCog(commands.Cog):
                 value="⚠️ Disabled — set OPENAI_API_KEY or GEMINI_API_KEY (+ AI_PROVIDER)",
                 inline=False,
             )
+        embed.add_field(
+            name="Sheets export",
+            value=(
+                f"🟢 {self.bot.sheets_service.url}"
+                if self.bot.sheets_service
+                else "⚪ Not configured (optional)"
+            ),
+            inline=False,
+        )
         if configuration is None:
             embed.add_field(
                 name="Server configuration",

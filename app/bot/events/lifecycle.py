@@ -32,16 +32,18 @@ _GREETING_CHANNELS = (
 
 
 def _load_greeting_template() -> str:
-    """Staff-editable greeting (content/greeting.md); safe fallback if missing.
+    """Staff-editable greeting (content/greeting.md, private/gitignored);
+    falls back to the shipped example, then a built-in.
 
     Placeholders: {member} {unit_name} {channels}
     """
-    try:
-        text = Path(_GREETING_FILE).read_text(encoding="utf-8").strip()
-        if text:
-            return text
-    except OSError:
-        pass
+    for candidate in (_GREETING_FILE, _GREETING_FILE.replace(".md", ".example.md")):
+        try:
+            text = Path(candidate).read_text(encoding="utf-8").strip()
+            if text:
+                return text
+        except OSError:
+            continue
     return _GREETING_FALLBACK
 
 

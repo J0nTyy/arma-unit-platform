@@ -32,3 +32,10 @@ Thumbs.db
 # Personal notes — never committed
 ideas.txt
 notes.txt
+
+# The unit's actual bot personality is private — examples ship instead
+content/personality.md
+content/greeting.md
+
+# Google service-account credentials — never committed
+google-credentials*.json

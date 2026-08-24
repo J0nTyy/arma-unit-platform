@@ -41,13 +41,15 @@ _FALLBACK_PERSONALITY = (
 
 def load_personality(path: str) -> str:
     """Personality lives in a content file so staff can tune it without
-    touching Python. Falls back to a safe built-in if the file is missing."""
-    try:
-        text = Path(path).read_text(encoding="utf-8").strip()
-        if text:
-            return text
-    except OSError:
-        pass
+    touching Python. The real file is private (gitignored); fresh clones
+    fall back to the shipped .example file, then to a safe built-in."""
+    for candidate in (path, path.replace(".md", ".example.md")):
+        try:
+            text = Path(candidate).read_text(encoding="utf-8").strip()
+            if text:
+                return text
+        except OSError:
+            continue
     log.warning("Personality file %r not found — using built-in fallback", path)
     return _FALLBACK_PERSONALITY
 
