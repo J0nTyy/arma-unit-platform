@@ -95,4 +95,26 @@ class GitHubFileNotFoundError(GitHubIntegrationError):
 
 
 class AIIntegrationError(ExternalServiceError):
-    default_user_message = "The AI assistant is currently unavailable."
+    default_user_message = (
+        "The unit assistant is temporarily unavailable. Please try again shortly."
+    )
+
+
+class AINotConfiguredError(AppError):
+    default_user_message = (
+        "The unit assistant isn't set up yet — an administrator must configure an "
+        "AI provider API key."
+    )
+
+
+class RateLimitedError(AppError):
+    """A user is calling a rate-limited feature too quickly."""
+
+    def __init__(self, retry_seconds: int) -> None:
+        self.retry_seconds = retry_seconds
+        super().__init__(
+            f"rate limited for {retry_seconds}s",
+            user_message=(
+                f"🕐 You're asking a bit fast — try again in about {retry_seconds} seconds."
+            ),
+        )

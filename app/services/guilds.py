@@ -37,6 +37,7 @@ _UPDATABLE_FIELDS = {
     "briefing_channel_id",
     "operation_logs_channel_id",
     "general_channel_id",
+    "ask_channel_id",
 }
 
 

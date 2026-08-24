@@ -16,6 +16,9 @@ dependencies = [
     "uvicorn>=0.30",
     # Async HTTP client for integrations (GitHub) and API tests
     "httpx>=0.27",
+    # AI assistant — one SDK for every OpenAI-compatible provider (OpenAI,
+    # Gemini's compatibility endpoint, and others via AI_BASE_URL)
+    "openai>=1.60",
     # Database
     "sqlalchemy[asyncio]>=2.0.36",
     "asyncpg>=0.30",         # PostgreSQL (production)

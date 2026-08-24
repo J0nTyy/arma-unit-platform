@@ -17,6 +17,16 @@ from app.errors import ConfigurationError
 
 _LOG_LEVELS = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
 
+# AI provider -> (default model, OpenAI-compatible base URL, settings key field)
+AI_PROVIDER_DEFAULTS = {
+    "openai": ("gpt-5-mini", None, "openai_api_key"),
+    "gemini": (
+        "gemini-2.5-flash",
+        "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "gemini_api_key",
+    ),
+}
+
 
 def normalize_database_url(url: str) -> str:
     """Map plain database URLs onto the async drivers this application uses.
@@ -68,8 +78,32 @@ class Settings(BaseSettings):
     github_missions_repository: str | None = None
     github_missions_branch: str = "main"
 
-    # Reserved for future phases — validated but unused today.
+    # AI assistant. One OpenAI-compatible client serves every provider:
+    # switch with AI_PROVIDER, no code changes needed.
+    ai_provider: Literal["openai", "gemini"] = "openai"
+    ai_model: str | None = None  # blank = the provider's default below
+    ai_base_url: str | None = None  # override for other compatible providers
+    ai_max_output_tokens: int = 700
+    ai_requests_per_minute: int = 4
+    ai_personality_file: str = "content/personality.md"
     openai_api_key: SecretStr | None = None
+    gemini_api_key: SecretStr | None = None
+
+    @property
+    def resolved_ai_model(self) -> str:
+        return self.ai_model or AI_PROVIDER_DEFAULTS[self.ai_provider][0]
+
+    @property
+    def resolved_ai_base_url(self) -> str | None:
+        return self.ai_base_url or AI_PROVIDER_DEFAULTS[self.ai_provider][1]
+
+    @property
+    def resolved_ai_key(self) -> SecretStr | None:
+        return getattr(self, AI_PROVIDER_DEFAULTS[self.ai_provider][2])
+
+    @property
+    def ai_configured(self) -> bool:
+        return self.resolved_ai_key is not None
 
     @property
     def missions_repository_configured(self) -> bool:
@@ -81,6 +115,9 @@ class Settings(BaseSettings):
         "github_missions_owner",
         "github_missions_repository",
         "openai_api_key",
+        "gemini_api_key",
+        "ai_model",
+        "ai_base_url",
         mode="before",
     )
     @classmethod

@@ -42,7 +42,7 @@ async def bot(database, monkeypatch):
 async def test_expected_commands_registered(bot):
     top_level = sorted(c.name for c in bot.tree.get_commands())
     assert top_level == [
-        "about", "help", "mission", "missions",
+        "about", "ask", "help", "mission", "missions",
         "operation", "operations", "ping", "profile", "unit",
     ]
 
@@ -77,6 +77,7 @@ async def test_permission_levels_are_tagged_correctly(bot):
     assert levels["ping"] is PermissionLevel.PUBLIC
     assert levels["help"] is PermissionLevel.PUBLIC
     assert levels["missions"] is PermissionLevel.MEMBER
+    assert levels["ask"] is PermissionLevel.MEMBER
     assert levels["profile"] is PermissionLevel.MEMBER
     assert levels["operations"] is PermissionLevel.MEMBER
     assert levels["mission publish"] is PermissionLevel.MISSION_MAKER

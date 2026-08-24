@@ -2,6 +2,7 @@
 # (Alembic autogenerate and test table creation depend on this).
 from app.database.models.base import Base
 from app.database.models.guild import CHANNEL_KINDS, GuildConfiguration
+from app.database.models.knowledge import KnowledgeDocument
 from app.database.models.mission import MissionIndexEntry
 from app.database.models.operation import (
     ALLOWED_TRANSITIONS,
@@ -18,6 +19,7 @@ __all__ = [
     "Base",
     "CHANNEL_KINDS",
     "GuildConfiguration",
+    "KnowledgeDocument",
     "MissionIndexEntry",
     "MissionPublication",
     "Operation",

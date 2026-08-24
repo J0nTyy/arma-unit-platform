@@ -3,7 +3,9 @@
 Living architecture document. The [README](README.md) covers quickstart/setup;
 this file explains how the system is built and why.
 
-**Version 0.4.0 — Phase 3 complete, plus operation-flow overhaul:**
+**Version 0.5.0 — Phase 4: AI unit assistant** (`/ask`, provider-switchable
+OpenAI/Gemini, tool-based grounding, permission-aware knowledge base — see
+§13 below). Previous: Phase 3 operation-flow overhaul:
 two-field date/time modal (Discord offers bots no calendar/clock widgets), operation names taken from the
 mission file, briefings as formatted plain messages with images beneath,
 dedicated **#attendance** / **#operation-brief** channels, staff-only
@@ -64,6 +66,7 @@ Discord should feel like a simple application, not a developer console:
 | `/operations` | member | Upcoming operations; select menu drills in (with attend buttons) |
 | `/operation view <operation>` | member | One operation card with live attendance buttons |
 | `/profile` | member | Upcoming ops + attendance record |
+| `/ask <question>` | member | AI unit assistant (grounded in unit data/docs) |
 | `/mission publish <mission>` | mission maker | Guided publish: preview → channel → publish/update |
 | `/operation create [mission]` | mission maker | Guided scheduling: picker → modal → preview → publish |
 | `/operation manage` | staff | Panel: lock/reopen, activate, complete, reschedule, repost, cancel |
@@ -247,7 +250,70 @@ assignment view, attendance history → player statistics, and AAR posting
 into the configured AAR channel. After that: Arma telemetry ingest via the
 existing FastAPI app (objective results keyed to objective IDs).
 
-## 12. Phase 1–2 reference (unchanged)
+## 13. AI unit assistant (Phase 4)
+
+### Architecture
+
+```
+/ask or @mention → rate limit → permission level resolved by the app
+      → AssistantService (personality + short memory)
+      → model ⇄ Tool Registry ⇄ Application Services   (bounded loop, ≤4 rounds)
+      → grounded answer
+```
+
+Never a raw passthrough: the model only sees what approved tools return, run
+at the requester's permission level. No SQL, no writes, no secrets — this
+phase is strictly read-only.
+
+### Provider switching
+
+One OpenAI-compatible client (`app/integrations/ai/`) serves every provider.
+`.env` decides: `AI_PROVIDER=openai` (OPENAI_API_KEY, default `gpt-5-mini`)
+or `AI_PROVIDER=gemini` (GEMINI_API_KEY via Google's compatibility endpoint,
+default `gemini-2.5-flash`); `AI_MODEL`/`AI_BASE_URL` override anything.
+Without a key the bot runs normally and `/ask` explains what's missing.
+
+### Tools (all member-level, read-only)
+
+`get_unit_information` · `search_knowledge` · `search_missions` ·
+`get_mission` · `get_mission_briefing` · `get_upcoming_operations` ·
+`get_operation` · `get_operation_roster`. The registry enforces
+authorization per tool and filters knowledge by the caller's tier; e.g.
+members get declined *counts* in rosters, staff get names.
+
+### Knowledge base
+
+Markdown files under `knowledge/` in the missions repo, frontmatter
+(`title` / `visibility: public|member|staff` / `tags`), indexed into the
+`knowledge_documents` table by `/unit sync` (validation failures reported,
+never fatal). Retrieval is keyword scoring per `##` section with
+visibility filtering *before* scoring — an interface a future vector search
+can replace without touching the AI service. Staff guide: the repo's
+`knowledge/README.md`.
+
+### Personality
+
+`content/personality.md` — tone plus non-negotiable grounding rules
+(answer from tools only, admit gaps, no invented lore/policies, no
+impersonation, no internal details). Editable without code changes;
+missing file falls back to a safe built-in.
+
+### Interaction & limits
+
+`/ask <question>` anywhere (member+); @mention questions only in the
+configured **Ask the unit** channel (created by setup as `#ask-the-unit`).
+Per-user sliding rate limit (`AI_REQUESTS_PER_MINUTE`, default 4). Short
+per-user conversation memory (3 exchanges, 15 min TTL, in-memory only).
+Logs record model/duration/tokens/tool names — never question or answer
+text. Migration 0006.
+
+### Known limitations
+
+Keyword retrieval (no semantic search yet); memory is per-user, not
+per-thread; mention questions require the ask channel to be configured;
+answers cap at ~3 Discord messages.
+
+## 14. Phase 1–2 reference (unchanged)
 
 GitHub client (Contents + Trees API, typed errors), mission schema (single
 pydantic source of truth generating the JSON Schemas), ONE validation

@@ -16,14 +16,19 @@ from app.bot.error_handler import handle_app_command_error
 from app.bot.views.components import DYNAMIC_ITEMS
 from app.config import Settings
 from app.database import Database
+from app.integrations.ai import AIChatClient
 from app.integrations.github import GitHubClient
 from app.services import (
+    AssistantService,
     GuildService,
+    KnowledgeService,
     MissionService,
     OperationService,
     PublicationService,
     StatusService,
 )
+from app.services.assistant import load_personality
+from app.services.assistant_tools import build_default_registry
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +36,7 @@ EXTENSIONS = (
     "app.bot.commands.general",
     "app.bot.commands.missions",
     "app.bot.commands.operations",
+    "app.bot.commands.assistant",
     "app.bot.commands.unit",
     "app.bot.events.lifecycle",
     "app.bot.events.scheduler",
@@ -58,6 +64,7 @@ class UnitBot(commands.Bot):
         # the required setup when it is not configured.
         self.github_client: GitHubClient | None = None
         self.mission_service: MissionService | None = None
+        self.knowledge_service: KnowledgeService | None = None
         if settings.missions_repository_configured:
             token = settings.github_token.get_secret_value() if settings.github_token else None
             self.github_client = GitHubClient(
@@ -67,6 +74,7 @@ class UnitBot(commands.Bot):
                 token=token,
             )
             self.mission_service = MissionService(database, self.github_client)
+            self.knowledge_service = KnowledgeService(database, self.github_client)
             log.info(
                 "Mission repository: %s (branch %s)",
                 self.github_client.repository_url, settings.github_missions_branch,
@@ -75,6 +83,32 @@ class UnitBot(commands.Bot):
             log.warning(
                 "Mission repository not configured: set GITHUB_MISSIONS_OWNER and "
                 "GITHUB_MISSIONS_REPOSITORY to enable /mission commands"
+            )
+
+        # AI assistant is optional; /ask explains itself when unconfigured.
+        self.ai_client: AIChatClient | None = None
+        self.assistant_service: AssistantService | None = None
+        if settings.ai_configured:
+            self.ai_client = AIChatClient(
+                api_key=settings.resolved_ai_key.get_secret_value(),  # type: ignore[union-attr]
+                model=settings.resolved_ai_model,
+                base_url=settings.resolved_ai_base_url,
+                max_output_tokens=settings.ai_max_output_tokens,
+            )
+            self.assistant_service = AssistantService(
+                self.ai_client,
+                build_default_registry(),
+                personality=load_personality(settings.ai_personality_file),
+                requests_per_minute=settings.ai_requests_per_minute,
+            )
+            log.info(
+                "Unit assistant enabled: provider=%s model=%s",
+                settings.ai_provider, settings.resolved_ai_model,
+            )
+        else:
+            log.warning(
+                "Unit assistant disabled: set OPENAI_API_KEY (or GEMINI_API_KEY with "
+                "AI_PROVIDER=gemini) to enable /ask"
             )
 
     async def setup_hook(self) -> None:
@@ -125,6 +159,8 @@ class UnitBot(commands.Bot):
     async def close(self) -> None:
         if self.github_client is not None:
             await self.github_client.aclose()
+        if self.ai_client is not None:
+            await self.ai_client.aclose()
         await super().close()
 
     async def on_error(self, event_method: str, /, *args: object, **kwargs: object) -> None:

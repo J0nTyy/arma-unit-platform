@@ -44,7 +44,9 @@ class UnitCog(commands.Cog):
             ephemeral=True,
         )
 
-    @unit.command(name="sync", description="Refresh missions from GitHub and update posts")
+    @unit.command(
+        name="sync", description="Refresh missions and knowledge from GitHub, update posts"
+    )
     @require(PermissionLevel.STAFF)
     async def unit_sync(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -53,6 +55,9 @@ class UnitCog(commands.Cog):
         assert interaction.guild is not None
         result = await self.bot.mission_service.sync()
         updated, stale = await refresh_guild_publications(self.bot, interaction.guild.id)
+        knowledge = None
+        if self.bot.knowledge_service is not None:
+            knowledge = await self.bot.knowledge_service.sync()
 
         healthy = not result.failures and result.invalid == 0
         embed = discord.Embed(
@@ -66,6 +71,13 @@ class UnitCog(commands.Cog):
         )
         embed.add_field(name="Removed", value=str(result.removed))
         embed.add_field(name="Published posts refreshed", value=f"{updated} ({stale} stale)")
+        if knowledge is not None:
+            knowledge_value = f"{knowledge.indexed} docs indexed, {knowledge.removed} removed"
+            if knowledge.failures:
+                knowledge_value += "\n" + "\n".join(
+                    f"✗ `{path}` — {error}" for path, error in knowledge.failures[:4]
+                )
+            embed.add_field(name="Knowledge base", value=knowledge_value[:1024], inline=False)
         if result.failures:
             failure_lines = "\n".join(
                 f"✗ `{failure.directory}` — {failure.errors[0]}"
@@ -100,6 +112,26 @@ class UnitCog(commands.Cog):
             ),
             inline=False,
         )
+        if self.bot.assistant_service is not None and self.bot.ai_client is not None:
+            knowledge_count = (
+                await self.bot.knowledge_service.document_count()
+                if self.bot.knowledge_service
+                else 0
+            )
+            embed.add_field(
+                name="Unit assistant",
+                value=(
+                    f"🟢 {self.bot.settings.ai_provider} · {self.bot.ai_client.model} · "
+                    f"{knowledge_count} knowledge docs indexed"
+                ),
+                inline=False,
+            )
+        else:
+            embed.add_field(
+                name="Unit assistant",
+                value="⚠️ Disabled — set OPENAI_API_KEY or GEMINI_API_KEY (+ AI_PROVIDER)",
+                inline=False,
+            )
         if configuration is None:
             embed.add_field(
                 name="Server configuration",

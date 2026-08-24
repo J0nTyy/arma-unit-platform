@@ -11,6 +11,7 @@ from app.database.models.base import Base
 CHANNEL_KINDS = (
     ("attendance_channel_id", "Attendance"),
     ("briefing_channel_id", "Operation brief"),
+    ("ask_channel_id", "Ask the unit (AI)"),
     ("operations_channel_id", "Operations"),
     ("missions_channel_id", "Missions"),
     ("announcements_channel_id", "Announcements"),
@@ -64,6 +65,8 @@ class GuildConfiguration(Base):
     operation_logs_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # The server's general chat — announcements are mirrored here.
     general_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # Where @mentioning the bot works as a natural-language question.
+    ask_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     configured_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

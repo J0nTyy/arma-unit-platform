@@ -13,6 +13,10 @@ Architecture details live in [PROJECT.md](PROJECT.md).
 
 ## 1. Current capabilities
 
+- **AI unit assistant**: `/ask` (or @mention in the ask channel) answers
+  from the unit's knowledge base, mission library and live operation data —
+  provider-switchable (OpenAI or Gemini via `.env`), permission-aware,
+  read-only, and honest when information doesn't exist
 - **Operations**: schedule a mission as an operation through a guided flow
   (mission picker → date/time modal → preview → publish), polished operation
   posts with live 🟢 Attend / 🟡 Maybe / 🔴 Can't-Attend buttons, rosters,
@@ -49,6 +53,7 @@ curated overview (staff sections appear only for staff).
 | `/operations` | Upcoming operations, drill in & attend | members |
 | `/operation view <operation>` | One operation with attendance buttons | members |
 | `/profile` | Your upcoming ops and attendance record | members |
+| `/ask <question>` | Ask the unit assistant anything | members |
 | `/mission publish <mission>` | Publish a mission post (guided) | mission makers |
 | `/operation create [mission]` | Schedule an operation (guided) | mission makers |
 | `/operation manage` | Lock / reschedule / complete / cancel | staff |
@@ -141,7 +146,10 @@ python -m app.main       # start the bot + API
 | `GITHUB_MISSIONS_REPOSITORY` | for `/mission` | unset | Missions repository name                    |
 | `GITHUB_MISSIONS_BRANCH` | —        | `main`        | Branch the bot reads missions from             |
 | `GITHUB_TOKEN`           | private repos | unset    | Fine-grained PAT (contents: read-only)         |
-| `OPENAI_API_KEY`         | —        | unset         | Reserved for a future phase (unused)           |
+| `AI_PROVIDER`            | —        | `openai`      | `openai` or `gemini` — switch anytime          |
+| `OPENAI_API_KEY` / `GEMINI_API_KEY` | for `/ask` | unset | Key for the selected provider          |
+| `AI_MODEL`               | —        | provider default | Pin a specific model                        |
+| `AI_REQUESTS_PER_MINUTE` | —        | `4`           | Per-user assistant rate limit                  |
 
 The application fails at startup with a clear message if required values are
 missing. Plain `postgresql://` / `sqlite://` URLs are automatically upgraded

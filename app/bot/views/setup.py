@@ -28,6 +28,7 @@ log = logging.getLogger(__name__)
 DEFAULT_CHANNEL_NAMES = {
     "attendance_channel_id": "attendance",
     "briefing_channel_id": "operation-brief",
+    "ask_channel_id": "ask-the-unit",
     "operations_channel_id": "operations",
     "missions_channel_id": "missions",
     "announcements_channel_id": "announcements",
@@ -46,6 +47,10 @@ DEFAULT_CHANNEL_TOPICS = {
     ),
     "briefing_channel_id": (
         "📖 Operation briefings and maps for the currently posted operations."
+    ),
+    "ask_channel_id": (
+        "🤖 Ask the unit assistant anything — use /ask or just @mention the bot "
+        "with your question. Missions, operations, rules, getting started."
     ),
     "operations_channel_id": "🎯 Operations chatter — planning, questions, coordination.",
     "missions_channel_id": (

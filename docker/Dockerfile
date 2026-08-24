@@ -9,6 +9,7 @@ WORKDIR /srv/app
 COPY pyproject.toml README.md alembic.ini ./
 COPY app ./app
 COPY migrations ./migrations
+COPY content ./content
 
 RUN pip install .
 

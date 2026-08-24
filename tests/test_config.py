@@ -15,6 +15,12 @@ ALL_ENV_VARS = [
     "API_PORT",
     "GITHUB_TOKEN",
     "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "AI_PROVIDER",
+    "AI_MODEL",
+    "AI_BASE_URL",
+    "AI_MAX_OUTPUT_TOKENS",
+    "AI_REQUESTS_PER_MINUTE",
 ]
 
 REQUIRED = {
@@ -101,6 +107,27 @@ def test_invalid_log_level_rejected(clean_env):
     clean_env.setenv("LOG_LEVEL", "verbose")
     with pytest.raises(ConfigurationError):
         load_settings(env_file=None)
+
+
+def test_ai_provider_resolution(clean_env):
+    for key, value in REQUIRED.items():
+        clean_env.setenv(key, value)
+    settings = load_settings(env_file=None)
+    assert settings.ai_configured is False  # no key set -> assistant disabled
+
+    clean_env.setenv("OPENAI_API_KEY", "sk-test")
+    settings = load_settings(env_file=None)
+    assert settings.ai_configured is True
+    assert settings.resolved_ai_model == "gpt-5-mini"
+    assert settings.resolved_ai_base_url is None
+
+    clean_env.setenv("AI_PROVIDER", "gemini")
+    clean_env.setenv("GEMINI_API_KEY", "g-test")
+    clean_env.setenv("AI_MODEL", "gemini-2.5-pro")
+    settings = load_settings(env_file=None)
+    assert settings.resolved_ai_key.get_secret_value() == "g-test"
+    assert settings.resolved_ai_model == "gemini-2.5-pro"
+    assert "generativelanguage" in settings.resolved_ai_base_url
 
 
 @pytest.mark.parametrize(

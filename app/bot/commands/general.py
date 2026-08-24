@@ -33,6 +33,12 @@ _HELP_MEMBER = (
         "operation post — you can change your answer any time",
     ),
     (
+        "🤖 Unit assistant",
+        "`/ask <question>` — ask about the unit, lore, missions, operations, "
+        "rules or getting started\n"
+        "You can also @mention the bot in the ask channel",
+    ),
+    (
         "👤 You",
         "`/profile` — your upcoming operations and attendance record",
     ),
