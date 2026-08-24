@@ -1,17 +1,17 @@
-"""Guided operation scheduling — zero typing.
+"""Guided operation scheduling.
 
-Flow: pick mission → pick date / hour / minute from select menus → preview →
-publish. The operation name comes straight from the mission file on GitHub.
-Publishing posts the formatted briefing (+ images) to the briefing channel
-and the signup post to the attendance channel, then announces it.
+Flow: pick mission → one small modal (date + time only; Discord's bot API
+offers no calendar/clock widgets) → preview → publish. The operation name
+comes straight from the mission file on GitHub. Publishing posts the
+formatted briefing (+ images) to the briefing channel and the signup post
+to the attendance channel, then announces it.
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Awaitable, Callable
-from zoneinfo import ZoneInfo
+from datetime import datetime
+from typing import TYPE_CHECKING
 
 import discord
 
@@ -27,9 +27,6 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-_DAYS_AHEAD = 25  # Discord select menus allow max 25 options
-_MINUTE_OPTIONS = ("00", "15", "30", "45")
-
 
 async def _guild_timezone(bot: "UnitBot", guild: discord.Guild) -> str:
     configuration = await bot.guild_service.get_configuration(guild.id)
@@ -44,108 +41,29 @@ async def _guild_timezone(bot: "UnitBot", guild: discord.Guild) -> str:
     return configuration.timezone
 
 
-class DateTimePickerView(discord.ui.View):
-    """Date + time selection via select menus (Discord has no calendar
-    widget for bots, so this is the no-typing equivalent)."""
+class ScheduleTimeModal(discord.ui.Modal):
+    """Date + time entry. Just two fields — everything else is automatic."""
 
-    def __init__(
-        self,
-        tz_name: str,
-        on_confirm: Callable[[discord.Interaction, datetime], Awaitable[None]],
-        *,
-        confirm_label: str = "Confirm date & time",
-    ) -> None:
-        super().__init__(timeout=600)
-        self._tz = ZoneInfo(tz_name)
+    def __init__(self, bot: "UnitBot", entry: MissionIndexEntry, tz_name: str) -> None:
+        super().__init__(title=f"Schedule {entry.mission_id}"[:45])
+        self._bot = bot
+        self._entry = entry
         self._tz_name = tz_name
-        self._on_confirm = on_confirm
-        self._date: date | None = None
-        self._hour: int | None = None
-        self._minute: int | None = None
-
-        today = datetime.now(self._tz).date()
-        date_select = discord.ui.Select(
-            placeholder="📅 Pick the day…",
-            options=[
-                discord.SelectOption(
-                    label=(today + timedelta(days=offset)).strftime("%A %d %B"),
-                    value=(today + timedelta(days=offset)).isoformat(),
-                    description="today" if offset == 0 else None,
-                )
-                for offset in range(_DAYS_AHEAD)
-            ],
-            row=0,
+        self.date_input = discord.ui.TextInput(
+            label=f"Date (DD/MM/YYYY, {tz_name})"[:45], placeholder="05/09/2026", max_length=10
         )
-        date_select.callback = self._on_date  # type: ignore[method-assign]
-        self._date_select = date_select
-        self.add_item(date_select)
-
-        hour_select = discord.ui.Select(
-            placeholder=f"🕗 Pick the hour ({tz_name})…",
-            options=[
-                discord.SelectOption(label=f"{hour:02d}:00 – {hour:02d}:59", value=str(hour))
-                for hour in range(24)
-            ],
-            row=1,
+        self.time_input = discord.ui.TextInput(
+            label="Time (24h HH:MM)", placeholder="20:00", max_length=5
         )
-        hour_select.callback = self._on_hour  # type: ignore[method-assign]
-        self._hour_select = hour_select
-        self.add_item(hour_select)
+        self.add_item(self.date_input)
+        self.add_item(self.time_input)
 
-        minute_select = discord.ui.Select(
-            placeholder="⏱️ Pick the minutes…",
-            options=[discord.SelectOption(label=f":{m}", value=m) for m in _MINUTE_OPTIONS],
-            row=2,
-        )
-        minute_select.callback = self._on_minute  # type: ignore[method-assign]
-        self._minute_select = minute_select
-        self.add_item(minute_select)
-
-        confirm = discord.ui.Button(
-            label=confirm_label, emoji="✅", style=discord.ButtonStyle.success, row=3
-        )
-        confirm.callback = self._confirm  # type: ignore[method-assign]
-        self.add_item(confirm)
-
-    async def _on_date(self, interaction: discord.Interaction) -> None:
-        self._date = date.fromisoformat(self._date_select.values[0])
-        await interaction.response.defer()
-
-    async def _on_hour(self, interaction: discord.Interaction) -> None:
-        self._hour = int(self._hour_select.values[0])
-        await interaction.response.defer()
-
-    async def _on_minute(self, interaction: discord.Interaction) -> None:
-        self._minute = int(self._minute_select.values[0])
-        await interaction.response.defer()
-
-    async def _confirm(self, interaction: discord.Interaction) -> None:
+    async def on_submit(self, interaction: discord.Interaction) -> None:
         try:
-            missing = [
-                label
-                for label, value in (
-                    ("day", self._date), ("hour", self._hour), ("minutes", self._minute)
-                )
-                if value is None
-            ]
-            if missing:
-                await interaction.response.send_message(
-                    f"⚠️ Still missing: **{', '.join(missing)}** — pick from the menus above.",
-                    ephemeral=True,
-                )
-                return
-            local = datetime(
-                self._date.year, self._date.month, self._date.day,
-                self._hour, self._minute, tzinfo=self._tz,
+            when_utc = self._bot.operation_service.parse_local_datetime(
+                self.date_input.value, self.time_input.value, self._tz_name
             )
-            when_utc = local.astimezone(timezone.utc)
-            if when_utc <= datetime.now(timezone.utc):
-                await interaction.response.send_message(
-                    "⚠️ That time is in the past — pick a future time.", ephemeral=True
-                )
-                return
-            self.stop()
-            await self._on_confirm(interaction, when_utc)
+            await _create_and_preview(interaction, self._bot, self._entry, self._tz_name, when_utc)
         except Exception as error:  # noqa: BLE001
             await respond_error(interaction, error)
 
@@ -164,7 +82,7 @@ async def start_schedule_flow(
         entry = await bot.mission_service.get_mission(mission_id)
         if entry is None:
             raise MissionNotFoundError(mission_id)
-        await _send_datetime_picker(interaction, bot, entry, tz_name)
+        await interaction.response.send_modal(ScheduleTimeModal(bot, entry, tz_name))
         return
 
     entries = [
@@ -182,23 +100,6 @@ async def start_schedule_flow(
         view=MissionPickView(bot, entries, tz_name),
         ephemeral=True,
     )
-
-
-async def _send_datetime_picker(
-    interaction: discord.Interaction, bot: "UnitBot", entry: MissionIndexEntry, tz_name: str
-) -> None:
-    async def on_confirm(picker_interaction: discord.Interaction, when_utc: datetime) -> None:
-        await _create_and_preview(picker_interaction, bot, entry, tz_name, when_utc)
-
-    content = (
-        f"**Scheduling {entry.mission_id} — {entry.name}**\n"
-        f"Pick the day and start time (unit timezone: **{tz_name}**):"
-    )
-    view = DateTimePickerView(tz_name, on_confirm)
-    if interaction.response.is_done():
-        await interaction.edit_original_response(content=content, view=view, embed=None)
-    else:
-        await interaction.response.send_message(content, view=view, ephemeral=True)
 
 
 class MissionPickView(discord.ui.View):
@@ -228,8 +129,9 @@ class MissionPickView(discord.ui.View):
     async def _on_pick(self, interaction: discord.Interaction) -> None:
         try:
             entry = self._by_id[self._select.values[0]]
-            await interaction.response.defer()
-            await _send_datetime_picker(interaction, self._bot, entry, self._tz_name)
+            await interaction.response.send_modal(
+                ScheduleTimeModal(self._bot, entry, self._tz_name)
+            )
         except Exception as error:  # noqa: BLE001
             await respond_error(interaction, error)
 
@@ -242,7 +144,7 @@ async def _create_and_preview(
     when_utc: datetime,
 ) -> None:
     try:
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True, thinking=True)
         objectives_text = None
         try:
             objectives = await bot.mission_service.get_objectives(entry.mission_id)  # type: ignore[union-attr]
@@ -276,10 +178,11 @@ async def _create_and_preview(
                 "Preview — ⚠️ **attendance/briefing channels not configured** "
                 "(`/unit setup` → create recommended channels), then press Publish."
             )
-        await interaction.edit_original_response(
-            content=hint,
+        await interaction.followup.send(
+            hint,
             embed=preview,
             view=PublishOperationView(bot, operation.id),
+            ephemeral=True,
         )
     except Exception as error:  # noqa: BLE001
         await respond_error(interaction, error)

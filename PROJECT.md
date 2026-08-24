@@ -4,7 +4,7 @@ Living architecture document. The [README](README.md) covers quickstart/setup;
 this file explains how the system is built and why.
 
 **Version 0.4.0 — Phase 3 complete, plus operation-flow overhaul:**
-select-menu date/time picker (no typing), operation names taken from the
+two-field date/time modal (Discord offers bots no calendar/clock widgets), operation names taken from the
 mission file, briefings as formatted plain messages with images beneath,
 dedicated **#attendance** / **#operation-brief** channels, staff-only
 **#operation-logs** archive (completed ops move immediately, cancelled after
@@ -165,10 +165,10 @@ change without touching UI code.
 
 ### Operation publishing layout
 
-Scheduling is fully click-based: mission select → **date/hour/minute select
-menus** (Discord offers bots no calendar widget; selects are the no-typing
-equivalent) → preview → publish. The operation name always comes from the
-mission file on GitHub.
+Scheduling: mission select → a **two-field modal** (date + time — Discord's
+bot API has no calendar or clock widgets, and a button-built calendar is
+impossible at 5 buttons per row) → preview → publish. The operation name
+always comes from the mission file on GitHub.
 
 Publishing then posts to **two channels**: the full briefing goes to
 `#operation-brief` as formatted plain messages (Discord renders the

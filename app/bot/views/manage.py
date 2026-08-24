@@ -16,7 +16,6 @@ from app.bot.views.components import (
     refresh_operation_message,
     respond_error,
 )
-from app.bot.views.operation_create import DateTimePickerView
 from app.database.models.operation import Operation, OperationStatus
 
 if TYPE_CHECKING:
@@ -152,28 +151,7 @@ class ManagePanelView(discord.ui.View):
     async def _reschedule(self, interaction: discord.Interaction) -> None:
         try:
             await ensure_level(interaction, PermissionLevel.STAFF)
-            bot, operation = self._bot, self._operation
-
-            async def on_confirm(picker_interaction: discord.Interaction, when_utc) -> None:
-                await picker_interaction.response.defer(ephemeral=True)
-                updated = await bot.operation_service.reschedule(operation.id, when_utc)
-                await refresh_operation_message(bot, updated)
-                await announce_operation(bot, updated, "rescheduled")
-                await picker_interaction.edit_original_response(
-                    content=f"🕒 **{updated.name}** rescheduled and announced. "
-                    "Reminders were reset for the new time.",
-                    embed=_panel_embed(updated),
-                    view=ManagePanelView(bot, updated),
-                )
-
-            await interaction.response.edit_message(
-                content=f"**Rescheduling {operation.name}** — pick the new day and time "
-                f"({operation.timezone}):",
-                embed=None,
-                view=DateTimePickerView(
-                    operation.timezone, on_confirm, confirm_label="Confirm new time"
-                ),
-            )
+            await interaction.response.send_modal(RescheduleModal(self._bot, self._operation))
         except Exception as error:  # noqa: BLE001
             await respond_error(interaction, error)
 
@@ -201,6 +179,38 @@ class ManagePanelView(discord.ui.View):
             )
             await bot.operation_service.set_message(operation.id, channel.id, message.id)
             await interaction.followup.send(f"📣 Reposted: {message.jump_url}", ephemeral=True)
+        except Exception as error:  # noqa: BLE001
+            await respond_error(interaction, error)
+
+
+class RescheduleModal(discord.ui.Modal):
+    def __init__(self, bot: "UnitBot", operation: Operation) -> None:
+        super().__init__(title=f"Reschedule {operation.name}"[:45])
+        self._bot = bot
+        self._operation = operation
+        self.date_input = discord.ui.TextInput(
+            label=f"New date (DD/MM/YYYY, {operation.timezone})"[:45], placeholder="05/09/2026"
+        )
+        self.time_input = discord.ui.TextInput(label="New time (24h HH:MM)", placeholder="20:00")
+        self.add_item(self.date_input)
+        self.add_item(self.time_input)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            service = self._bot.operation_service
+            when_utc = service.parse_local_datetime(
+                self.date_input.value, self.time_input.value, self._operation.timezone
+            )
+            operation = await service.reschedule(self._operation.id, when_utc)
+            await refresh_operation_message(self._bot, operation)
+            await announce_operation(self._bot, operation, "rescheduled")
+            unix = embeds.unix_ts(operation.scheduled_at)
+            await interaction.followup.send(
+                f"🕒 **{operation.name}** moved to <t:{unix}:F> and announced. "
+                "Reminders were reset for the new time.",
+                ephemeral=True,
+            )
         except Exception as error:  # noqa: BLE001
             await respond_error(interaction, error)
 
