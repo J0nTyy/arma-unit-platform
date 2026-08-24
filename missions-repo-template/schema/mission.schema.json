@@ -70,18 +70,6 @@
     "difficulty": {
       "$ref": "#/$defs/Difficulty"
     },
-    "minimum_players": {
-      "maximum": 300,
-      "minimum": 1,
-      "title": "Minimum Players",
-      "type": "integer"
-    },
-    "maximum_players": {
-      "maximum": 300,
-      "minimum": 1,
-      "title": "Maximum Players",
-      "type": "integer"
-    },
     "estimated_duration_minutes": {
       "maximum": 1440,
       "minimum": 10,
@@ -93,13 +81,6 @@
         "type": "string"
       },
       "title": "Factions",
-      "type": "array"
-    },
-    "required_mods": {
-      "items": {
-        "type": "string"
-      },
-      "title": "Required Mods",
       "type": "array"
     },
     "tags": {
@@ -125,8 +106,6 @@
     "map",
     "mission_type",
     "difficulty",
-    "minimum_players",
-    "maximum_players",
     "estimated_duration_minutes",
     "version"
   ],

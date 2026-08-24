@@ -7,11 +7,16 @@
   "map": "Livonia",
   "mission_type": "Defense",
   "difficulty": "standard",
-  "minimum_players": 6,
-  "maximum_players": 24,
   "estimated_duration_minutes": 90,
-  "factions": ["NATO", "LDF", "Spetsnaz"],
-  "required_mods": ["CBA_A3", "ACE3"],
-  "tags": ["defense", "armor", "daytime"],
+  "factions": [
+    "NATO",
+    "LDF",
+    "Spetsnaz"
+  ],
+  "tags": [
+    "defense",
+    "armor",
+    "daytime"
+  ],
   "version": "0.3.0"
 }

@@ -2,17 +2,29 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, String, func
+from sqlalchemy import BigInteger, Boolean, DateTime, String, func, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.models.base import Base
+
+# Channel purposes the bot can be configured with, in display order.
+CHANNEL_KINDS = (
+    ("operations_channel_id", "Operations"),
+    ("missions_channel_id", "Missions"),
+    ("announcements_channel_id", "Announcements"),
+    ("logs_channel_id", "Bot logs"),
+    ("recruitment_channel_id", "Recruitment"),
+    ("aar_channel_id", "After-action reports"),
+    ("staff_channel_id", "Staff"),
+)
 
 
 class GuildConfiguration(Base):
     """Per-Discord-server configuration.
 
-    Lets the bot serve multiple guilds without hardcoding one server. Future
-    phases will extend this (staff role IDs, announcement channels, ...).
+    Lets the bot serve multiple guilds without hardcoding one server.
+    Channel/role IDs are Discord snowflakes chosen through /unit setup —
+    never typed by hand and never hardcoded.
     """
 
     __tablename__ = "guild_configurations"
@@ -21,6 +33,26 @@ class GuildConfiguration(Base):
     # Discord snowflake IDs exceed 32-bit integers
     guild_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     guild_name: Mapped[str] = mapped_column(String(200))
+
+    # General settings
+    unit_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # IANA timezone name (e.g. Asia/Kolkata); required before scheduling works
+    timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reminders_enabled: Mapped[bool] = mapped_column(Boolean, server_default=true())
+
+    # Roles (fall back to Discord's Manage Server permission when unset)
+    staff_role_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    mission_maker_role_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    # Channels
+    operations_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    missions_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    announcements_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    logs_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    recruitment_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    aar_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    staff_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
     configured_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

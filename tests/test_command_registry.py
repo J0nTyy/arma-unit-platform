@@ -41,12 +41,17 @@ async def bot(database, monkeypatch):
 
 async def test_expected_commands_registered(bot):
     top_level = sorted(c.name for c in bot.tree.get_commands())
-    assert top_level == ["about", "config", "help", "mission", "ping", "status"]
+    assert top_level == [
+        "about", "help", "mission", "missions",
+        "operation", "operations", "ping", "profile", "unit",
+    ]
 
     mission = bot.tree.get_command("mission")
-    assert sorted(c.name for c in mission.commands) == [
-        "brief", "list", "search", "sync", "validate", "view",
-    ]
+    assert sorted(c.name for c in mission.commands) == ["publish", "view"]
+    operation = bot.tree.get_command("operation")
+    assert sorted(c.name for c in operation.commands) == ["create", "manage", "view"]
+    unit = bot.tree.get_command("unit")
+    assert sorted(c.name for c in unit.commands) == ["diagnostics", "setup", "sync"]
 
 
 async def test_every_command_has_a_description(bot):
@@ -71,15 +76,20 @@ async def test_permission_levels_are_tagged_correctly(bot):
     }
     assert levels["ping"] is PermissionLevel.PUBLIC
     assert levels["help"] is PermissionLevel.PUBLIC
-    assert levels["mission list"] is PermissionLevel.MEMBER
-    assert levels["mission sync"] is PermissionLevel.STAFF
-    assert levels["config setup"] is PermissionLevel.ADMIN
+    assert levels["missions"] is PermissionLevel.MEMBER
+    assert levels["profile"] is PermissionLevel.MEMBER
+    assert levels["operations"] is PermissionLevel.MEMBER
+    assert levels["mission publish"] is PermissionLevel.MISSION_MAKER
+    assert levels["operation create"] is PermissionLevel.MISSION_MAKER
+    assert levels["operation manage"] is PermissionLevel.STAFF
+    assert levels["unit sync"] is PermissionLevel.STAFF
+    assert levels["unit setup"] is PermissionLevel.ADMIN
 
 
-async def test_admin_group_hidden_from_non_admins_in_ui(bot):
-    config = bot.tree.get_command("config")
-    assert config.default_permissions is not None
-    assert config.default_permissions.administrator
+async def test_staff_group_hidden_from_members_in_ui(bot):
+    unit = bot.tree.get_command("unit")
+    assert unit.default_permissions is not None
+    assert unit.default_permissions.manage_guild
 
 
 async def test_bot_reports_missions_unconfigured(bot):

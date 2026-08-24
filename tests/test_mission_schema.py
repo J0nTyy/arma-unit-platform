@@ -17,11 +17,8 @@ VALID_MISSION = {
     "map": "Altis",
     "mission_type": "Direct Action",
     "difficulty": "hard",
-    "minimum_players": 8,
-    "maximum_players": 32,
     "estimated_duration_minutes": 120,
     "factions": ["NATO"],
-    "required_mods": ["CBA_A3"],
     "tags": ["night"],
     "version": "1.0.0",
 }
@@ -76,14 +73,13 @@ def test_invalid_mission_id_format_rejected():
         make_mission(id="operation one")
 
 
-def test_player_count_maximum_below_minimum_rejected():
-    with pytest.raises(ValidationError, match="maximum_players must be >= minimum_players"):
-        make_mission(minimum_players=20, maximum_players=10)
-
-
-def test_zero_players_rejected():
-    with pytest.raises(ValidationError):
-        make_mission(minimum_players=0)
+def test_removed_legacy_fields_are_rejected():
+    # player limits and mod lists left the schema in v0.3.1 — extra=forbid
+    # makes stale mission.json files fail loudly instead of silently.
+    with pytest.raises(ValidationError, match="maximum_players"):
+        make_mission(maximum_players=32)
+    with pytest.raises(ValidationError, match="required_mods"):
+        make_mission(required_mods=["CBA_A3"])
 
 
 def test_invalid_version_rejected():
@@ -91,9 +87,9 @@ def test_invalid_version_rejected():
         make_mission(version="1.0")
 
 
-def test_blank_required_mod_rejected():
+def test_blank_faction_rejected():
     with pytest.raises(ValidationError, match="empty"):
-        make_mission(required_mods=["CBA_A3", "  "])
+        make_mission(factions=["NATO", "  "])
 
 
 def test_tags_normalized_and_deduplicated():

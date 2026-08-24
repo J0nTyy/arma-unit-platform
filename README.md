@@ -6,52 +6,55 @@ as a real application rather than a single bot script. Discord is the primary
 signups, attendance, statistics, qualifications, lore, onboarding, an AI
 assistant and Arma server integration.
 
-**Current phase: 2 — GitHub mission repository.** Architecture details live
-in [PROJECT.md](PROJECT.md).
+**Current phase: 3 — Discord UX, channels, operations & attendance.**
+Architecture details live in [PROJECT.md](PROJECT.md).
 
 ---
 
 ## 1. Current capabilities
 
-- **Mission system**: missions live in a separate GitHub repository
-  (structured `mission.json` / `objectives.json` / `slots.json` + Markdown
-  briefing), indexed into the database by `/mission sync`, served by
-  `/mission list · view · brief · validate · search` with autocomplete
-- **One validation implementation** shared by Discord commands, sync, and a
-  local CLI (`python -m tools.validate_mission <dir>`) — errors tell mission
-  makers exactly what to fix
-- Discord bot with slash commands: `/ping`, `/about`, `/status`, and an
-  administrator-only `/config setup` / `/config view` group
-- Declarative permission levels (public / member / staff / admin) enforced
-  server-side on every command
-- Centralized command error handling — users get friendly messages, full
-  details go to the logs with a reference ID
-- PostgreSQL database layer (SQLAlchemy 2 async + Alembic migrations) with a
-  working `GuildConfiguration` model so the bot supports multiple servers
-- Structured logging (readable in development, JSON in production)
-- Minimal HTTP API (`GET /health`) running alongside the bot
-- Docker Compose local environment (app + PostgreSQL)
-- Test suite (configuration, database, services, API)
+- **Operations**: schedule a mission as an operation through a guided flow
+  (mission picker → date/time modal → preview → publish), polished operation
+  posts with live 🟢 Attend / 🟡 Maybe / 🔴 Can't-Attend buttons, rosters,
+  FIFO waitlist with automatic promotion, and a staff management panel
+  (lock, reschedule, complete, cancel, repost)
+- **Automatic reminders**: 24-hour and 1-hour channel reminders mentioning
+  confirmed attendees — database-driven, so they survive bot restarts
+- **Mission publishing**: post polished mission embeds to the configured
+  channel, duplicate-aware (update the existing post instead of reposting),
+  auto-refreshed on `/unit sync` when statuses change
+- **Server setup UI**: `/unit setup` configures channels, staff/mission-maker
+  roles, timezone, unit name and reminders via native select menus — and can
+  create the recommended channel set (with confirmation and sensible
+  permissions)
+- **Mission system** (Phase 2): missions live in a GitHub repository,
+  validated against one schema implementation shared by the bot and the
+  local CLI (`python -m tools.validate_mission <dir>`)
+- Persistent buttons (attendance, briefs, rosters) that keep working after
+  restarts; permission checks enforced server-side on every click
+- PostgreSQL (SQLAlchemy 2 async + Alembic), structured logging, centralized
+  error handling, FastAPI `GET /health`, Docker Compose, 130-test suite
 
 ### Commands
 
-Every command also shows its description directly in Discord, and `/help`
-prints this list in the server.
+Every command and parameter is described in Discord itself; `/help` shows a
+curated overview (staff sections appear only for staff).
 
 | Command | What it does | Access |
 | --- | --- | --- |
-| `/help` | List every command and what it does | everyone |
-| `/ping` | Check that the bot is responsive | everyone |
-| `/about` | What the bot is, version and environment | everyone |
-| `/status` | Bot, Discord and database health | everyone |
-| `/mission list [status] [map] [type]` | List missions, optionally filtered | members |
-| `/mission view <id>` | Mission details + View Brief / View Objectives buttons | members |
-| `/mission brief <id>` | The full mission briefing (long briefs attach as a file) | members |
-| `/mission validate <id>` | Check a mission's files against the schema, live from GitHub | members |
-| `/mission search <query>` | Search missions by ID, name, map, tags, maker, … | members |
-| `/mission sync` | Refresh the mission index from GitHub | staff (Manage Server) |
-| `/config setup` | Register this Discord server in the database | administrators |
-| `/config view` | Show this server's stored configuration | administrators |
+| `/help` | What can this bot do for you? | everyone |
+| `/ping` / `/about` | Liveness / what the bot is | everyone |
+| `/missions [search] [status]` | Browse missions, drill into details | members |
+| `/mission view <mission>` | Mission card + Brief/Objectives buttons | members |
+| `/operations` | Upcoming operations, drill in & attend | members |
+| `/operation view <operation>` | One operation with attendance buttons | members |
+| `/profile` | Your upcoming ops and attendance record | members |
+| `/mission publish <mission>` | Publish a mission post (guided) | mission makers |
+| `/operation create [mission]` | Schedule an operation (guided) | mission makers |
+| `/operation manage` | Lock / reschedule / complete / cancel | staff |
+| `/unit setup` | Channels, roles, timezone, reminders | administrators |
+| `/unit sync` | Refresh missions from GitHub | staff |
+| `/unit diagnostics` | Bot / database / repository health | staff |
 
 ## 2. Architecture
 
@@ -156,7 +159,10 @@ to the async drivers the app uses. **Never commit `.env`.**
    https://discord.com/api/oauth2/authorize?client_id=YOUR_APP_ID&scope=bot%20applications.commands&permissions=19456
    ```
 
-   (`19456` = View Channels + Send Messages + Embed Links.)
+   (`19456` = View Channels + Send Messages + Embed Links. To let the bot
+   **create the recommended channels** in `/unit setup`, re-invite with
+   Manage Channels + Manage Roles included — the setup flow shows the exact
+   URL when needed.)
 5. For development, copy your server's ID (right-click the server icon with
    Developer Mode enabled) into `DEV_GUILD_IDS` so slash commands appear
    instantly. Multiple servers are supported, comma-separated (e.g.
@@ -251,10 +257,9 @@ docker-compose.yml        # app + PostgreSQL for local development
 
 None of the following exists yet — the architecture just leaves room for it:
 
-- Operation scheduling, announcements, signups and rosters (Phase 3 —
-  design sketch in [PROJECT.md](PROJECT.md))
-- Unit member profiles, qualifications and roles
-- Attendance tracking and player statistics
+- Structured slot signups (pick Rifleman/Medic/… from slots.json) and squad
+  rosters (Phase 4 — design sketch in [PROJECT.md](PROJECT.md))
+- Player statistics and qualifications built on attendance history
 - After-action reports and campaign progression
 - AI-powered unit assistant (via controlled application tools)
 - Arma 3 server/gameplay integration and telemetry (incl. objective results)

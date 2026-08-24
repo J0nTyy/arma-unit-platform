@@ -118,14 +118,11 @@ class MissionService:
                     "map_name": metadata.map,
                     "mission_type": metadata.mission_type,
                     "difficulty": metadata.difficulty.value,
-                    "minimum_players": metadata.minimum_players,
-                    "maximum_players": metadata.maximum_players,
                     "estimated_duration_minutes": metadata.estimated_duration_minutes,
                     "mission_maker": metadata.mission_maker,
                     "description": metadata.description,
                     "version": metadata.version,
                     "factions": list(metadata.factions),
-                    "required_mods": list(metadata.required_mods),
                     "tags": list(metadata.tags),
                     "directory": directory,
                     "is_valid": report.is_valid,
@@ -259,6 +256,36 @@ class MissionService:
                     f"run `/mission validate {entry.mission_id}` for details."
                 ),
             ) from exc
+
+    async def get_attachments(
+        self, mission_id: str, *, max_files: int = 9, max_bytes: int = 8_000_000
+    ) -> list[tuple[str, bytes]]:
+        """Images/files from the mission's images/ folder, for Discord posts.
+
+        Oversized files are skipped with a log entry; at most `max_files`
+        are returned (Discord allows 10 attachments per message).
+        """
+        entry = await self._require_mission(mission_id)
+        prefix = f"{entry.directory}/images/"
+        tree = await self._github.get_tree()
+        attachments: list[tuple[str, bytes]] = []
+        for item in tree:
+            if len(attachments) >= max_files:
+                log.info("Attachment cap reached for %s — extra files skipped", mission_id)
+                break
+            if item.type != "blob" or not item.path.startswith(prefix):
+                continue
+            if item.size > max_bytes:
+                log.warning(
+                    "Skipping oversized attachment %s (%d bytes)", item.path, item.size
+                )
+                continue
+            filename = item.path.rsplit("/", 1)[-1]
+            try:
+                attachments.append((filename, await self._github.get_binary_file(item.path)))
+            except GitHubFileNotFoundError:
+                continue
+        return attachments
 
     async def validate_mission(self, mission_id: str) -> ValidationReport:
         """Validate a mission against the repository's CURRENT content."""

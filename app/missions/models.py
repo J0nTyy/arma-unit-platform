@@ -81,11 +81,8 @@ class MissionMetadata(BaseModel):
     map: str = Field(min_length=2, max_length=60)
     mission_type: str = Field(min_length=3, max_length=50)
     difficulty: Difficulty
-    minimum_players: int = Field(ge=1, le=300)
-    maximum_players: int = Field(ge=1, le=300)
     estimated_duration_minutes: int = Field(ge=10, le=1440)
     factions: list[str] = Field(default_factory=list)
-    required_mods: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     version: str = Field(
         pattern=r"^\d+\.\d+\.\d+$", description="Semantic version, e.g. 1.0.0"
@@ -100,7 +97,7 @@ class MissionMetadata(BaseModel):
             return value.strip().lower()
         return value
 
-    @field_validator("factions", "required_mods")
+    @field_validator("factions")
     @classmethod
     def _no_blank_entries(cls, value: list[str]) -> list[str]:
         cleaned = [entry.strip() for entry in value]
@@ -119,13 +116,6 @@ class MissionMetadata(BaseModel):
             if tag not in seen:
                 seen.append(tag)
         return seen
-
-    @model_validator(mode="after")
-    def _player_range_is_sensible(self) -> "MissionMetadata":
-        if self.maximum_players < self.minimum_players:
-            raise ValueError("maximum_players must be >= minimum_players")
-        return self
-
 
 class Objective(BaseModel):
     """One entry of objectives.json.

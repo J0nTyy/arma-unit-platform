@@ -46,8 +46,13 @@ Fill in every field. The important rules:
 - `description` is one or two sentences — the long story goes in `brief.md`.
 - `version` is `major.minor.patch`, e.g. `0.1.0`. Bump it when you change
   the mission meaningfully.
-- Player counts: `maximum_players` must be at least `minimum_players`, and
-  should match the total number of slots in `slots.json`.
+
+You do **not** list player counts or required mods — the unit has no member
+limit and runs a standard modset.
+
+**Don't worry about Discord formatting.** You write plain Markdown and JSON;
+the bot turns it into polished Discord posts (sections, emoji, layout) when
+a mission is published or scheduled.
 
 ## 5. Write the briefing (`brief.md`)
 
@@ -67,8 +72,24 @@ mission has been played.
 ## 7. Define slots (`slots.json`)
 
 Describe the intended player composition: categories (Command, Infantry,
-Support, …) containing roles with a count. The total of all counts should
-equal `maximum_players`.
+Support, …) containing roles with a count. This is planning information for
+players and future signup systems — there is no hard player limit.
+
+## 7b. Add images and files (optional)
+
+Create an `images/` folder inside your mission and drop in anything players
+should see with the briefing — AO maps, plans, screenshots:
+
+```
+active/OP-003-thunder-road/
+    images/
+        ao-map.png
+        assault-plan.jpg
+```
+
+When your mission is scheduled as an operation, the bot posts these files in
+Discord together with the briefing, right above the signup post. Keep files
+under 8 MB each; the first ~9 files are posted.
 
 ## 8. Validate before pushing
 

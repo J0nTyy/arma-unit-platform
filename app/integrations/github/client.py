@@ -103,6 +103,25 @@ class GitHubClient:
             raise GitHubUnavailableError(f"{path}: unsupported content encoding")
         return base64.b64decode(data["content"]).decode("utf-8")
 
+    async def get_binary_file(self, path: str) -> bytes:
+        """Fetch a file's raw bytes (images, PDFs, ...) from the branch."""
+        url = f"/repos/{self._owner}/{self._repository}/contents/{path}"
+        try:
+            response = await self._http.get(
+                url,
+                params={"ref": self._branch},
+                headers={"Accept": "application/vnd.github.raw+json"},
+            )
+        except httpx.HTTPError as exc:
+            log.warning("GitHub request failed: GET %s (%s)", url, exc)
+            raise GitHubUnavailableError(f"GET {path} failed: {exc}") from exc
+        if response.status_code == 404:
+            raise GitHubFileNotFoundError(f"GET {path} -> 404")
+        if response.status_code >= 400:
+            log.error("GitHub returned HTTP %d for GET %s", response.status_code, url)
+            raise GitHubUnavailableError(f"GET {path} -> {response.status_code}")
+        return response.content
+
     async def get_tree(self) -> list[TreeEntry]:
         """List every path in the repository (single API call)."""
         data = await self._get(

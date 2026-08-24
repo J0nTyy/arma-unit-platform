@@ -139,17 +139,4 @@ def validate_mission_files(files: MissionFiles) -> ValidationReport:
                 "status is 'archived' but the mission is not in the archived/ directory"
             )
 
-    if metadata is not None and slots is not None:
-        total = slots.total_player_count
-        if total != metadata.maximum_players:
-            report.warnings.append(
-                f"slots.json: total slot count ({total}) does not match "
-                f"maximum_players ({metadata.maximum_players})"
-            )
-        if total < metadata.minimum_players:
-            report.warnings.append(
-                f"slots.json: total slot count ({total}) is below "
-                f"minimum_players ({metadata.minimum_players})"
-            )
-
     return report

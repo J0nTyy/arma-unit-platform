@@ -49,12 +49,11 @@ def mission_files(
 ) -> dict[str, str]:
     directory = directory or f"active/{mission_id}-test"
     metadata = {**VALID_MISSION, "id": mission_id, **metadata_overrides}
-    slot_count = metadata["maximum_players"]
     files = {
         f"{directory}/mission.json": json.dumps(metadata),
         f"{directory}/objectives.json": json.dumps([VALID_OBJECTIVE]),
         f"{directory}/slots.json": json.dumps(
-            {"categories": [{"name": "Infantry", "slots": [{"role": "Rifleman", "count": slot_count}]}]}
+            {"categories": [{"name": "Infantry", "slots": [{"role": "Rifleman", "count": 10}]}]}
         ),
     }
     if include_brief:

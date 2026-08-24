@@ -3,244 +3,231 @@
 Living architecture document. The [README](README.md) covers quickstart/setup;
 this file explains how the system is built and why.
 
-**Version 0.2.0 — Phase 2 (GitHub mission repository) complete.**
-(This file was created in Phase 2; Phase 1's documentation lived in the README.)
+**Version 0.3.1 — Phase 3 complete, plus post-phase UX refinements:** no
+member limits or per-mission mod lists (unit-wide standard modset), free-form
+operation names, three-column attendance board with member mentions, the
+briefing (plus mission `images/`) posted above every signup post, and
+self-explaining channel topics on creation.
 
 ---
 
 ## 1. Architecture
 
 ```
-Discord                          HTTP clients (future: webhooks, telemetry, dashboard)
-   ↓                                 ↓
-Bot commands & events            FastAPI app (GET /health)
-   ↓                                 ↓
+Discord (commands + buttons/selects/modals)     HTTP clients (future)
+   ↓                                                ↓
+Bot cogs & persistent UI components             FastAPI app (GET /health)
+   ↓                                                ↓
         Application services  (business logic, transactions, typed errors)
              ↓                        ↓
         Repositories             Integrations
              ↓                        ↓
         PostgreSQL               GitHub API   ·   OpenAI (stub)   ·   Arma (stub)
-        (unit state,             (mission content —
-         mission index)           source of truth)
 ```
 
-Layer rules (enforced by convention, checked in review):
+Layer rules:
 
-- Discord commands contain no business logic; they call services and format
-  the results (`app/bot/commands/`).
-- Services own database transactions and translate infrastructure failures
-  into typed `AppError`s with user-safe messages (`app/services/`).
-- Repositories contain query logic only (`app/database/repositories/`).
-- All GitHub HTTP traffic goes through `app/integrations/github/client.py`.
-  Nothing else in the codebase calls the GitHub API.
-- Domain logic that must be shared across interfaces lives in `app/missions/`
-  (schema models + validation) — used identically by the bot, the sync
-  indexer, and the local CLI validator.
+- Cogs and UI views contain no business logic — they call services and render
+  results. Services own transactions and typed errors; repositories own queries.
+- All GitHub traffic goes through `app/integrations/github/client.py`.
+- Domain logic shared across interfaces lives in `app/missions/`.
+- Every permission decision is made server-side (`app/bot/permissions.py`),
+  including inside button/select callbacks. Discord-side visibility
+  (`default_permissions`) is cosmetic only.
 
-## 2. GitHub integration
+## 2. Discord UX philosophy (Phase 3)
 
-`GitHubClient` (httpx) is a thin transport layer over two endpoints:
+Discord should feel like a simple application, not a developer console:
 
-- **Contents API** — fetch one file's text (base64-decoded)
-- **Git Trees API** (`?recursive=1`) — list every path in the repo in a
-  single request; this is how missions are discovered without N API calls
+- **Small command vocabulary.** Members: `/missions`, `/operations`,
+  `/profile`, `/help` (+ `/mission view`, `/operation view` for deep links).
+- **Buttons over commands.** Briefings, objectives, validation, publishing,
+  scheduling, attendance, rosters — all buttons on posts, not extra commands.
+- **Selects/modals over parameters.** Nothing asks for IDs to be typed:
+  mission pickers, channel selects, role selects, date/time modals.
+- **No implementation vocabulary.** "sync/index/cache/repository/schema" only
+  appear in staff commands (`/unit …`), never in member-facing UI.
+- **Persistent buttons.** Attendance/roster/brief/mission buttons are
+  discord.py DynamicItems — their state lives in the `custom_id`, so posts
+  keep working after bot restarts, forever.
 
-Auth is a fine-grained PAT (`GITHUB_TOKEN`) with read-only access to the
-missions repository's contents. Public repos work without a token but are
-rate-limited to 60 requests/hour. Failures map to typed errors:
-`GitHubFileNotFoundError` (missing path) and `GitHubUnavailableError`
-(network/5xx/auth/rate-limit), which the central Discord error handler turns
-into friendly messages.
+## 3. Command surface
 
-## 3. Mission repository structure
-
-A **separate Git repository** (create it from `missions-repo-template/`):
-
-```
-active/<MISSION-ID>-short-name/     # missions in rotation or in progress
-    mission.json                    # structured metadata (schema-validated)
-    brief.md                        # human-readable briefing (Markdown)
-    objectives.json                 # structured objectives, telemetry-ready IDs
-    slots.json                      # intended player composition
-archived/                           # retired missions
-templates/mission-template/         # starting point for new missions
-schema/*.schema.json                # generated JSON Schemas (editor IntelliSense)
-.vscode/settings.json               # wires the schemas into VS Code
-```
-
-Principles: **structured data in JSON, prose in Markdown**; folder names
-start with the mission ID; IDs are unique forever.
-
-## 4. Mission schema
-
-Defined once, in pydantic models (`app/missions/models.py`). The JSON Schema
-files in the missions repo are **generated** from these models via
-`python -m tools.export_mission_schema` — regenerate and commit them to the
-missions repo whenever the models change.
-
-`mission.json` fields: `id` (`OP-001` style, `^[A-Z]{2,6}-\d{2,4}$`), `name`,
-`status`, `mission_maker`, `description` (≤ 500 chars — prose goes in
-brief.md), `map`, `mission_type` (free text), `difficulty`
-(easy/standard/hard/veteran), `minimum_players`/`maximum_players`,
-`estimated_duration_minutes`, `factions[]`, `required_mods[]`, `tags[]`
-(normalized lowercase), `version` (semver). Unknown keys are **rejected**
-(catches typos); a `$schema` key is tolerated for editor support.
-Enum-ish strings are case-insensitive on input.
-
-`objectives.json`: array of `{id, name, description, type
-(primary/secondary/optional), required}`. IDs unique per mission — they are
-the stable keys Arma telemetry will later report against.
-
-`slots.json`: `{categories: [{name, slots: [{role, count}]}]}` — generic on
-purpose; different makers structure compositions differently.
-
-## 5. Mission lifecycle
-
-| Status        | Meaning                                                  |
-| ------------- | -------------------------------------------------------- |
-| `draft`       | Idea/skeleton; may be incomplete; not playable            |
-| `development` | Actively being built                                      |
-| `review`      | Content-complete; awaiting staff review / test session    |
-| `ready`       | Approved and playable; schedulable as an operation        |
-| `archived`    | Retired; folder moves to `archived/`                      |
-
-The status lives in `mission.json` (source of truth: Git). Status/location
-mismatches (e.g. `ready` mission in `archived/`) are validation warnings.
-
-## 6. Sync & caching model
-
-```
-GitHub  --/mission sync-->  mission index (DB table `missions`)  -->  list/search/view
-GitHub  ---------------- live fetch ---------------------------->  brief/objectives/validate
-```
-
-- `/mission sync` (staff): one Trees API call to discover mission
-  directories, four file fetches per mission, full validation, then an
-  index upsert + removal of entries whose missions left the repo.
-  Missions with unparseable `mission.json` are reported in the sync summary
-  but not indexed; parseable-but-invalid missions are indexed with
-  `is_valid=false` and their errors stored.
-- **Reads are cache-first**: list/search/view never touch GitHub, so they
-  keep working during a GitHub outage. Every listing shows "index last
-  synced <relative time>" so staleness is visible.
-- **Live operations**: `/mission brief` and `/mission validate` always fetch
-  current repository content (a mission maker validating their just-pushed
-  fix must see the truth, not the cache).
-- The index is disposable — GitHub remains the single source of truth, and
-  a sync fully reconciles the index against it.
-
-## 7. Validation
-
-One implementation: `app.missions.validation.validate_mission_files()`,
-operating on file *content* so it is transport-agnostic. Consumers:
-
-1. `/mission validate <id>` — content fetched from GitHub
-2. `/mission sync` — validates every mission while indexing
-3. `python -m tools.validate_mission <dir>` — content read from a local clone
-
-Checks: required files present (mission.json, brief.md, objectives.json,
-slots.json), JSON parses, schema-valid (including enum values, player-range
-sanity, semver, duplicate objective IDs, duplicate slot categories), plus
-cross-file checks. **Errors** fail validation; **warnings** don't (slot total
-≠ maximum_players, directory name not starting with the mission ID,
-status/location mismatch, very short brief, no primary objective).
-
-## 8. Discord commands
-
-| Command | Access | Data source |
+| Command | Access | What it does |
 | --- | --- | --- |
-| `/help` | public | command tree (built dynamically) |
-| `/mission list [status] [map] [type]` | member | index |
-| `/mission view <id>` (+ View Brief / View Objectives buttons) | member | index (+ live fetch on buttons) |
-| `/mission brief <id>` | member | live |
-| `/mission validate <id>` | member | live |
-| `/mission search <query>` | member | index |
-| `/mission sync` | staff (Manage Server) | GitHub → index |
-| `/ping`, `/about`, `/status` | public | — |
-| `/config setup`, `/config view` | admin | database |
+| `/help` | everyone | Curated overview; staff sections only shown to staff |
+| `/ping`, `/about` | everyone | Liveness / what the bot is |
+| `/missions [search] [status]` | member | Browse missions; select menu drills into details |
+| `/mission view <mission>` | member | Mission card + Brief · Objectives · (maker: Validate · Publish · Schedule) buttons |
+| `/operations` | member | Upcoming operations; select menu drills in (with attend buttons) |
+| `/operation view <operation>` | member | One operation card with live attendance buttons |
+| `/profile` | member | Upcoming ops + attendance record |
+| `/mission publish <mission>` | mission maker | Guided publish: preview → channel → publish/update |
+| `/operation create [mission]` | mission maker | Guided scheduling: picker → modal → preview → publish |
+| `/operation manage` | staff | Panel: lock/reopen, activate, complete, reschedule, repost, cancel |
+| `/unit setup` | admin | Central config hub: channels, roles, timezone, unit name, reminders + channel creation |
+| `/unit sync` | staff | Refresh mission index from GitHub + update published posts |
+| `/unit diagnostics` | staff | Bot/database/repository/config health |
 
-Every command and parameter carries a description shown in Discord's UI;
-a registry test (`tests/test_command_registry.py`) fails the build if a
-command is added without one. `/help` builds its output from the command
-tree at runtime, so new commands appear in it automatically, tagged with
-their permission level (via `require()` metadata).
+Removed/renamed from Phase 2: `/mission list|search` → `/missions`;
+`/mission brief|validate` → buttons; `/mission sync` → `/unit sync`;
+`/status` → `/unit diagnostics`; `/config …` → `/unit setup`.
 
-Mission ID parameters autocomplete from the index. Long briefings are sent
-as a preview + attached `.md` file (Discord's 4096-char embed limit).
-Buttons expire after 10 minutes or a bot restart (non-persistent views).
+## 4. Permissions
 
-## 9. Environment variables
+Five levels, resolved server-side on every command *and* button click
+(`resolve_level` is pure and unit-tested):
 
-Everything from Phase 1, plus:
+- `PUBLIC` → anyone
+- `MEMBER` → any guild member
+- `MISSION_MAKER` → configured Mission Maker role (or anything below)
+- `STAFF` → configured Staff role, falling back to Discord's **Manage
+  Server** permission when no role is configured
+- `ADMIN` → Discord Administrator
 
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `GITHUB_MISSIONS_OWNER` | for /mission | GitHub user/org owning the missions repo |
-| `GITHUB_MISSIONS_REPOSITORY` | for /mission | Missions repository name |
-| `GITHUB_MISSIONS_BRANCH` | no (default `main`) | Branch to read |
-| `GITHUB_TOKEN` | private repos | Fine-grained PAT, contents read-only |
+Roles are configured in `/unit setup` and stored per guild. `/help` shows
+each user only the sections they can use; `default_permissions` additionally
+hides `/unit` from non-staff in the Discord UI (cosmetic layer).
 
-When unset, the bot starts normally and `/mission` commands explain what an
-administrator must configure.
+## 5. Channel configuration
 
-## 10. Mission-maker workflow
+`GuildConfiguration` stores per-guild channel IDs (operations, missions,
+announcements, logs, recruitment, AAR, staff), role IDs, timezone, unit name
+and the reminders toggle. Everything is set through `/unit setup` with
+Discord's native channel/role select menus — admins never type IDs.
 
-Documented for makers in the missions repo's `MISSION_MAKER.md`. Summary:
-clone → copy `templates/mission-template/` to `active/OP-xxx-name/` → edit
-in VS Code (live schema IntelliSense) → validate (local CLI or push +
-`/mission validate`) → commit/push → staff run `/mission sync`.
+**Create recommended channels**: the setup hub can create the full channel
+set after showing a plan and asking for confirmation. Channels that already
+exist (by configured ID or by default name) are reused, never duplicated.
+Each created channel gets a topic explaining its purpose. Requires the bot
+to have Manage Channels + Manage Roles (the setup flow surfaces a re-invite
+URL if missing).
 
-## 11. Known limitations
+| Channel | Purpose | Who can post | What the bot does there |
+| --- | --- | --- | --- |
+| `#operations` | Scheduled operations | bot (members read) | Briefing + images, signup post with attendance buttons, reminders, waitlist promotions |
+| `#missions` | Mission library | bot (members read) | Published mission cards with Brief/Objectives/Schedule buttons, refreshed on `/unit sync` |
+| `#announcements` | Unit-wide announcements | bot + staff | Reserved for future automated announcements |
+| `#recruitment` | New-player info | everyone | Reserved for future onboarding features |
+| `#after-action-reports` | AARs for completed ops | bot (members read) | Reserved for the future AAR system |
+| `#bot-logs` | Bot activity log | staff only | Reserved for staff-visible bot event logging |
+| `#staff` | Staff coordination | staff only | Reserved for staff notifications (e.g. review requests) |
 
-- **Manual sync**: changes appear only after `/mission sync` (webhook design
-  below is the planned fix). The index shows its age in listings.
-- Search is in-Python substring matching over the index — fine for a unit's
-  mission count (tens to low hundreds), not for thousands.
-- `/mission view` buttons are non-persistent (die on restart/timeout).
-- Local CLI validation requires the platform repo checked out; makers
-  without it use `/mission validate` in Discord instead (same checks).
-- Unauthenticated GitHub access is limited to 60 requests/hour — set
-  GITHUB_TOKEN even for public repos.
-- Images in mission folders are ignored by the bot for now.
-
-## 12. Webhooks (deferred by design)
-
-Recommended future design: GitHub push webhook → `POST /webhooks/github` on
-the existing FastAPI app (HMAC signature verification with a shared secret)
-→ debounce a few seconds → run the same `MissionService.sync()` →
-announce changed missions in a configured Discord channel. Deferred because
-it requires a publicly reachable HTTPS endpoint, which the current
-laptop/Docker deployment doesn't have; `/mission sync` covers the need until
-the bot moves to a VPS.
-
-## 13. Recommended next phase (Phase 3)
-
-Operation scheduling on top of the mission index:
-
-- `operations` table referencing `mission_id` (never duplicating mission
-  content) + scheduled datetime, host, state machine (announced → locked →
-  completed/cancelled)
-- `/operation schedule <mission_id> <datetime>` (staff), `/operation list`
-- Automated announcement posts in a configured channel, built from the
-  mission index + brief
-- Guild configuration extension: announcement channel ID, staff role ID
-  (replacing the Manage-Server-permission heuristic in `PermissionLevel`)
-- Groundwork for signups (Phase 4): stable operation IDs and announcement
-  message references
-
-## 14. Project structure (delta from Phase 1)
+## 6. Operations & attendance model
 
 ```
-app/
-├── missions/              # NEW: domain — schema models + single validation impl
-├── bot/commands/missions.py   # NEW: /mission command group
-├── services/missions.py       # NEW: sync/list/search/brief/validate logic
-├── database/models/mission.py         # NEW: mission index table
-├── database/repositories/missions.py  # NEW
-├── integrations/github/client.py      # now a real httpx client (was stub)
-tools/
-├── validate_mission.py    # NEW: local CLI validator (same validation impl)
-└── export_mission_schema.py  # NEW: regenerates JSON Schemas from models
-missions-repo-template/    # NEW: push this to a new GitHub repo (see README)
-migrations/versions/0002_mission_index.py  # NEW
+GitHub mission  →  mission index row  →  Operation (scheduled instance)
+                                             ↓
+                                        OperationAttendance (per member)
+                                             ↓
+                                        Discord post (channel_id/message_id)
 ```
+
+- `operations`: guild, mission_id (content never duplicated), name, UTC
+  `scheduled_at` + the IANA timezone it was scheduled in, server name,
+  `max_players`, status, creator, post reference, an objectives snapshot
+  (rendered at creation so posts rebuild without GitHub calls), and reminder
+  bookkeeping.
+- `operation_attendance`: one row per member per operation
+  (unique constraint), status `attending / maybe / declined / waitlist`,
+  display name captured at click time, waitlist entry timestamp.
+- `mission_publications`: which mission is published as which message
+  (unique per guild+mission+channel) so publishing updates instead of
+  duplicating.
+
+### Lifecycle
+
+`draft → scheduled → open ⇄ locked → active → completed`, with `cancelled`
+reachable from every non-terminal state. Transitions are validated by a
+whitelist in the service layer — `completed → open`, `cancelled → active`
+etc. are impossible. Operations auto-flip to `active` at start time (via the
+scheduler). Archived missions can't be scheduled unless staff explicitly
+allow it.
+
+### Attendance & waitlist
+
+Buttons, not reactions. Clicking Attend/Maybe/Can't-Attend upserts the
+member's single row, then the post's embed is rebuilt in place (never a new
+message). The post shows a **three-column attendance board** — Attending /
+Maybe / Can't attend — listing each respondent as a mention.
+
+Operations have **no member limit by default** (`max_players` is NULL). The
+FIFO waitlist-and-promotion rules stay implemented in the service layer and
+engage automatically if a capacity is ever set again. All rules live in
+`OperationService.set_attendance` + `_reconcile_waitlist`, so the policy can
+change without touching UI code.
+
+### Operation publishing layout
+
+Publishing posts **two things** to the operations channel: first the full
+briefing — rendered from the maker's plain `brief.md` into sectioned,
+emoji-titled embeds (the *Notes for Mission Makers* section is omitted),
+with any `images/` files attached — and directly below it, the operation
+post with the attendance board and buttons.
+
+## 7. Reminders
+
+Database-driven, restart-proof: each operation stores
+`reminder_24h_sent_at` / `reminder_1h_sent_at`. A 60-second scheduler loop
+asks the service "what is due now?" — the service marks and returns due
+reminders; the cog posts them in the operations channel as replies to the
+operation post, mentioning confirmed attendees. Design points:
+
+- Bot down through a window → reminder sends on next tick (still before
+  start); bot down past start → skipped, never sent late.
+- Operations created inside a window (e.g. 2h before start) skip the stale
+  24h reminder but still get the 1h one.
+- Rescheduling resets both flags so the new time gets fresh reminders.
+- Per-guild toggle in `/unit setup`; timezone is respected (all math in UTC,
+  display via Discord's local timestamps).
+
+## 8. Mission publishing
+
+`/mission publish` (or the Publish button on `/mission view`): preview embed
+→ optional channel change (defaults to the configured missions channel) →
+publish. The message reference is recorded; publishing the same mission
+again offers **Update Existing / Publish Another / Cancel**. `/unit sync`
+re-renders every published post afterwards, so status changes
+(🟡 development → 🟢 ready …) appear on existing posts without new messages.
+Published mission posts carry Brief / Objectives / Schedule-Operation
+buttons (schedule is maker-gated at click time).
+
+## 9. Database changes (migration 0003)
+
+- 0003: `guild_configurations` + unit_name, timezone, reminders_enabled,
+  staff_role_id, mission_maker_role_id, 7 channel ID columns; new
+  `operations`, `operation_attendance` (FK, cascade delete),
+  `mission_publications`
+- 0004: mission player limits and `required_mods` dropped from the index;
+  `operations.max_players` becomes nullable (NULL = no member limit)
+
+## 10. Known limitations
+
+- Roster shows flat lists (no squad assignment yet — that's the Phase 4+
+  signup/roster system).
+- Reminder delivery is channel-post only (chosen design); DMs could be added
+  as a per-user preference later.
+- The ephemeral flows (setup hub, create flow, manage panel) time out after
+  10–15 minutes — re-run the command; only the *persistent* post buttons
+  survive restarts by design.
+- One operation post per operation; reposting re-points the operation at the
+  new message.
+- Waitlist promotions announce in-channel but don't DM the promoted member.
+- `/operations` hides `scheduled`-but-never-published operations from
+  members until published.
+
+## 11. Recommended next phase (Phase 4)
+
+Signup rosters & structured slotting on top of attendance: pick an actual
+slot (`Rifleman`, `Medic`, …) from the mission's `slots.json`, squad
+assignment view, attendance history → player statistics, and AAR posting
+into the configured AAR channel. After that: Arma telemetry ingest via the
+existing FastAPI app (objective results keyed to objective IDs).
+
+## 12. Phase 1–2 reference (unchanged)
+
+GitHub client (Contents + Trees API, typed errors), mission schema (single
+pydantic source of truth generating the JSON Schemas), ONE validation
+implementation shared by bot/sync/CLI (`python -m tools.validate_mission`),
+sync/caching model (index = disposable cache; GitHub = source of truth),
+mission-maker workflow docs in the missions repo (`MISSION_MAKER.md`).

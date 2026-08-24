@@ -1,4 +1,4 @@
-"""General-purpose commands: /ping, /about, /status."""
+"""General commands: /ping, /about, /help, /profile."""
 
 from __future__ import annotations
 
@@ -10,13 +10,49 @@ from discord import app_commands
 from discord.ext import commands
 
 from app import __version__
-from app.bot.permissions import PermissionLevel, command_permission_level, require
+from app.bot import embeds
+from app.bot.permissions import PermissionLevel, member_level, require
 
 if TYPE_CHECKING:
     from app.bot.bot import UnitBot
 
-_GREEN = discord.Colour.from_str("#43b581")
-_ORANGE = discord.Colour.from_str("#faa61a")
+# /help is curated (not a raw command dump): sections appear only for people
+# who can actually use them, and wording targets players, not developers.
+_HELP_MEMBER = (
+    (
+        "🪖 Missions",
+        "`/missions` — browse the unit's missions (filter or search)\n"
+        "`/mission view` — one mission in detail, with **Brief** and "
+        "**Objectives** buttons",
+    ),
+    (
+        "🎯 Operations",
+        "`/operations` — upcoming operations, pick one to view\n"
+        "`/operation view` — one operation with attendance buttons\n"
+        "Use 🟢 **Attend** / 🟡 **Maybe** / 🔴 **Can't Attend** on any "
+        "operation post — you can change your answer any time",
+    ),
+    (
+        "👤 You",
+        "`/profile` — your upcoming operations and attendance record",
+    ),
+)
+_HELP_MAKER = (
+    "🛠️ Mission makers",
+    "`/mission publish` — post a mission to the missions channel\n"
+    "`/operation create` — schedule a mission as an operation\n"
+    "**Validate** and **Publish** buttons live on `/mission view`",
+)
+_HELP_STAFF = (
+    "🛡️ Staff",
+    "`/operation manage` — lock, reschedule, complete or cancel an operation\n"
+    "`/unit sync` — refresh missions from GitHub\n"
+    "`/unit diagnostics` — bot / database / repository health",
+)
+_HELP_ADMIN = (
+    "⚙️ Administrators",
+    "`/unit setup` — channels, roles, timezone, reminders (start here!)",
+)
 
 
 class GeneralCog(commands.Cog):
@@ -40,69 +76,66 @@ class GeneralCog(commands.Cog):
         embed = discord.Embed(
             title="Arma Unit Bot",
             description=(
-                "Unit management platform for an Arma 3 community.\n\n"
-                "Currently in **Phase 1 (Foundation)**: core infrastructure, "
-                "health monitoring and per-server configuration. Missions, "
-                "signups, attendance and more arrive in later phases."
+                "Unit management for an Arma 3 community: missions, operations, "
+                "signups and attendance — all inside Discord.\n\n"
+                "Start with `/help`."
             ),
-            colour=_GREEN,
+            colour=embeds.GREEN,
         )
         embed.add_field(name="Version", value=__version__)
         embed.add_field(name="Environment", value=self.bot.settings.environment)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="help", description="List every command and what it does")
+    @app_commands.command(name="help", description="What can this bot do for you?")
     @require(PermissionLevel.PUBLIC)
     async def help(self, interaction: discord.Interaction) -> None:
-        def describe(command: app_commands.Command, qualified: str) -> str:
-            level = command_permission_level(command)
-            tag = f" · 🔒 {level.name.lower()}" if level >= PermissionLevel.STAFF else ""
-            return f"`/{qualified}` — {command.description}{tag}"
-
-        simple: list[str] = []
-        groups: list[app_commands.Group] = []
-        for top in self.bot.tree.get_commands():
-            if isinstance(top, app_commands.Group):
-                groups.append(top)
-            elif isinstance(top, app_commands.Command):
-                simple.append(describe(top, top.name))
-
+        level = await member_level(self.bot, interaction.user)
         embed = discord.Embed(
-            title="Command overview",
-            description="\n".join(sorted(simple)),
-            colour=discord.Colour.blurple(),
+            title="❓ Command overview",
+            description="Most things are done with **buttons** on posts — "
+            "commands just get you there.",
+            colour=embeds.BLURPLE,
         )
-        for group in sorted(groups, key=lambda g: g.name):
+        for name, value in _HELP_MEMBER:
+            embed.add_field(name=name, value=value, inline=False)
+        if level >= PermissionLevel.MISSION_MAKER:
+            embed.add_field(name=_HELP_MAKER[0], value=_HELP_MAKER[1], inline=False)
+        if level >= PermissionLevel.STAFF:
+            embed.add_field(name=_HELP_STAFF[0], value=_HELP_STAFF[1], inline=False)
+        if level >= PermissionLevel.ADMIN:
+            embed.add_field(name=_HELP_ADMIN[0], value=_HELP_ADMIN[1], inline=False)
+        embed.set_footer(text="Need more help? Ask unit staff.")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(description="Your upcoming operations and attendance record")
+    @require(PermissionLevel.MEMBER)
+    async def profile(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        assert interaction.guild is not None
+        summary = await self.bot.operation_service.user_profile(
+            interaction.guild.id, interaction.user.id
+        )
+        embed = discord.Embed(
+            title=f"👤 {interaction.user.display_name}",
+            colour=embeds.BLURPLE,
+        )
+        if summary.upcoming:
+            status_icon = {"attending": "🟢", "maybe": "🟡", "waitlist": "⏳"}
             lines = [
-                describe(sub, f"{group.name} {sub.name}")
-                for sub in sorted(group.commands, key=lambda c: c.name)
-                if isinstance(sub, app_commands.Command)
+                f"{status_icon.get(attendance.status, '•')} **{operation.name}** — "
+                f"<t:{embeds.unix_ts(operation.scheduled_at)}:F>"
+                for attendance, operation in summary.upcoming[:10]
             ]
+            embed.add_field(name="Upcoming operations", value="\n".join(lines), inline=False)
+        else:
             embed.add_field(
-                name=f"/{group.name} — {group.description}",
-                value="\n".join(lines)[:1024],
+                name="Upcoming operations",
+                value="None yet — check `/operations` and hit 🟢 **Attend**!",
                 inline=False,
             )
-        embed.set_footer(text="🔒 = staff/admin only · mission IDs autocomplete as you type")
-        await interaction.response.send_message(embed=embed)
-
-    @app_commands.command(description="Bot, Discord and database health")
-    @require(PermissionLevel.PUBLIC)
-    async def status(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(thinking=True)
-        report = await self.bot.status_service.check()
-
-        database_value = "🟢 Connected" if report.database_connected else "🔴 Unreachable"
-        embed = discord.Embed(
-            title="System Status",
-            colour=_GREEN if report.database_connected else _ORANGE,
-        )
-        embed.add_field(name="Bot", value="🟢 Online")
-        embed.add_field(name="Discord", value=f"🟢 Connected ({self._latency_ms()})")
-        embed.add_field(name="Database", value=database_value)
-        embed.add_field(name="Environment", value=report.environment)
-        embed.add_field(name="Version", value=report.version)
-        await interaction.followup.send(embed=embed)
+        embed.add_field(name="Operations attended", value=str(summary.attended_count))
+        embed.add_field(name="Operations responded to", value=str(summary.responded_count))
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 async def setup(bot: "UnitBot") -> None:

@@ -8,15 +8,48 @@ and never touch sessions or SQLAlchemy directly.
 from __future__ import annotations
 
 import logging
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import Database
 from app.database.models.guild import GuildConfiguration
 from app.database.repositories.guilds import GuildConfigurationRepository
-from app.errors import DatabaseError
+from app.errors import DatabaseError, ValidationError
 
 log = logging.getLogger(__name__)
+
+# Settings /unit setup may write. Anything else is rejected loudly.
+_UPDATABLE_FIELDS = {
+    "unit_name",
+    "timezone",
+    "reminders_enabled",
+    "staff_role_id",
+    "mission_maker_role_id",
+    "operations_channel_id",
+    "missions_channel_id",
+    "announcements_channel_id",
+    "logs_channel_id",
+    "recruitment_channel_id",
+    "aar_channel_id",
+    "staff_channel_id",
+}
+
+
+def validate_timezone(name: str) -> str:
+    """Validate an IANA timezone name, returning its canonical spelling."""
+    candidate = name.strip()
+    try:
+        ZoneInfo(candidate)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ValidationError(
+            f"unknown timezone {candidate!r}",
+            user_message=(
+                f"`{candidate}` is not a valid timezone. Use an IANA name like "
+                "`Asia/Kolkata`, `Europe/Berlin` or `America/New_York`."
+            ),
+        ) from exc
+    return candidate
 
 
 class GuildService:
@@ -44,3 +77,27 @@ class GuildService:
         except SQLAlchemyError as exc:
             log.exception("Failed to load configuration for guild %s", guild_id)
             raise DatabaseError(f"get_configuration({guild_id}) failed") from exc
+
+    async def update_settings(
+        self, guild_id: int, guild_name: str, **fields: object
+    ) -> GuildConfiguration:
+        """Update configuration fields, registering the guild if needed."""
+        unknown = set(fields) - _UPDATABLE_FIELDS
+        if unknown:
+            raise ValueError(f"not updatable via update_settings: {sorted(unknown)}")
+        if "timezone" in fields and fields["timezone"] is not None:
+            fields["timezone"] = validate_timezone(str(fields["timezone"]))
+        try:
+            async with self._database.session() as session:
+                async with session.begin():
+                    repository = GuildConfigurationRepository(session)
+                    configuration = await repository.upsert(guild_id, guild_name)
+                    for key, value in fields.items():
+                        setattr(configuration, key, value)
+                    await session.flush()
+                    await session.refresh(configuration)
+            log.info("Updated settings for guild %s: %s", guild_id, sorted(fields))
+            return configuration
+        except SQLAlchemyError as exc:
+            log.exception("Failed to update settings for guild %s", guild_id)
+            raise DatabaseError(f"update_settings({guild_id}) failed") from exc

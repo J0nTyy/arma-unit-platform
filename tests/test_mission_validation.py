@@ -58,14 +58,6 @@ def test_duplicate_objective_ids_reported():
     assert any("duplicate objective ID" in e for e in report.errors)
 
 
-def test_slot_total_mismatch_is_warning_not_error():
-    slots = {"categories": [{"name": "Infantry", "slots": [{"role": "Rifleman", "count": 5}]}]}
-    report = validate_mission_files(make_files(slots_json=json.dumps(slots)))
-    assert report.is_valid  # warnings don't fail validation
-    assert any("does not match maximum_players" in w for w in report.warnings)
-    assert any("below minimum_players" in w for w in report.warnings)
-
-
 def test_directory_id_mismatch_is_warning():
     report = validate_mission_files(make_files(directory="active/OP-999-wrong-name"))
     assert any("should start with the mission ID" in w for w in report.warnings)
@@ -77,7 +69,7 @@ def test_archived_directory_with_active_status_is_warning():
 
 
 def test_multiple_independent_errors_all_reported():
-    mission = {**VALID_MISSION, "minimum_players": 40}  # max (32) < min (40)
+    mission = {**VALID_MISSION, "difficulty": "nightmare"}
     objectives = [VALID_OBJECTIVE, {**VALID_OBJECTIVE, "name": "Duplicate"}]
     report = validate_mission_files(
         make_files(mission_json=json.dumps(mission), objectives_json=json.dumps(objectives), brief_md=None)

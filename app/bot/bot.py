@@ -13,18 +13,27 @@ import discord
 from discord.ext import commands
 
 from app.bot.error_handler import handle_app_command_error
+from app.bot.views.components import DYNAMIC_ITEMS
 from app.config import Settings
 from app.database import Database
 from app.integrations.github import GitHubClient
-from app.services import GuildService, MissionService, StatusService
+from app.services import (
+    GuildService,
+    MissionService,
+    OperationService,
+    PublicationService,
+    StatusService,
+)
 
 log = logging.getLogger(__name__)
 
 EXTENSIONS = (
     "app.bot.commands.general",
-    "app.bot.commands.admin",
     "app.bot.commands.missions",
+    "app.bot.commands.operations",
+    "app.bot.commands.unit",
     "app.bot.events.lifecycle",
+    "app.bot.events.scheduler",
 )
 
 
@@ -42,6 +51,8 @@ class UnitBot(commands.Bot):
         # Services shared by all cogs — commands never touch the database directly.
         self.guild_service = GuildService(database)
         self.status_service = StatusService(settings, database)
+        self.operation_service = OperationService(database)
+        self.publication_service = PublicationService(database)
 
         # Mission repository integration is optional; /mission commands explain
         # the required setup when it is not configured.
@@ -68,6 +79,9 @@ class UnitBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         self.tree.error(handle_app_command_error)
+        # Persistent buttons (attendance, rosters, mission actions) — state
+        # lives in custom_ids, so posts keep working across restarts.
+        self.add_dynamic_items(*DYNAMIC_ITEMS)
         for extension in EXTENSIONS:
             await self.load_extension(extension)
             log.info("Loaded extension %s", extension)
