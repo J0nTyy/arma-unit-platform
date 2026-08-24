@@ -71,14 +71,16 @@ class AssistantCog(commands.Cog):
 
     @commands.Cog.listener("on_message")
     async def on_message(self, message: discord.Message) -> None:
-        """@UnitBot <question> — only in the configured ask channel."""
+        """@UnitBot <question> — works in any channel, but only when the bot
+        is explicitly mentioned. It never reacts to ordinary conversation."""
         if message.author.bot or message.guild is None:
             return
         if self.bot.user is None or self.bot.user not in message.mentions:
             return
-        configuration = await self.bot.guild_service.get_configuration(message.guild.id)
-        if configuration is None or configuration.ask_channel_id != message.channel.id:
-            return
+        if message.reference is not None and not message.content.startswith(
+            (f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>")
+        ):
+            return  # a reply that merely pings the bot isn't a question for it
         question = re.sub(rf"<@!?{self.bot.user.id}>", "", message.content).strip()
         if not question:
             await message.reply(

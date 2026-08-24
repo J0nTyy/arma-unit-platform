@@ -36,7 +36,7 @@ _HELP_MEMBER = (
         "🤖 Unit assistant",
         "`/ask <question>` — ask about the unit, lore, missions, operations, "
         "rules or getting started\n"
-        "You can also @mention the bot in the ask channel",
+        "Or just @mention the bot with your question, in any channel",
     ),
     (
         "👤 You",

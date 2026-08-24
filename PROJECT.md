@@ -301,8 +301,14 @@ missing file falls back to a safe built-in.
 
 ### Interaction & limits
 
-`/ask <question>` anywhere (member+); @mention questions only in the
-configured **Ask the unit** channel (created by setup as `#ask-the-unit`).
+`/ask <question>` anywhere (member+); **@mention questions work in any
+channel** — the bot only ever reacts when explicitly mentioned, never to
+ordinary conversation (`#ask-the-unit` remains the suggested home for
+longer back-and-forth). The persona ("Sarge", a veteran NCO voice with
+Discord-native reply formatting) lives in `content/personality.md`;
+the new-member greeting template lives in `content/greeting.md`
+(placeholders: `{member}` `{unit_name}` `{channels}`) and posts to the
+recruitment channel (fallback: general/system) on member join.
 Per-user sliding rate limit (`AI_REQUESTS_PER_MINUTE`, default 4). Short
 per-user conversation memory (3 exchanges, 15 min TTL, in-memory only).
 Logs record model/duration/tokens/tool names — never question or answer
@@ -311,8 +317,7 @@ text. Migration 0006.
 ### Known limitations
 
 Keyword retrieval (no semantic search yet); memory is per-user, not
-per-thread; mention questions require the ask channel to be configured;
-answers cap at ~3 Discord messages.
+per-thread; answers cap at ~3 Discord messages.
 
 ## 15. Players, identity & finalized attendance (Phase 5)
 
