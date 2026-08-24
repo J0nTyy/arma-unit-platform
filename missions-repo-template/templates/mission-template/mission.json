@@ -1,0 +1,17 @@
+{
+  "id": "OP-000",
+  "name": "Operation Template",
+  "status": "draft",
+  "mission_maker": "YourName",
+  "description": "One or two sentences describing the mission. Long-form text belongs in brief.md, not here.",
+  "map": "Altis",
+  "mission_type": "Direct Action",
+  "difficulty": "standard",
+  "minimum_players": 6,
+  "maximum_players": 16,
+  "estimated_duration_minutes": 90,
+  "factions": ["NATO"],
+  "required_mods": ["CBA_A3", "ACE3"],
+  "tags": ["example"],
+  "version": "0.1.0"
+}

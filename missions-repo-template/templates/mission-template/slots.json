@@ -1,0 +1,24 @@
+{
+  "categories": [
+    {
+      "name": "Command",
+      "slots": [
+        { "role": "Squad Leader", "count": 1 }
+      ]
+    },
+    {
+      "name": "Infantry",
+      "slots": [
+        { "role": "Team Leader", "count": 2 },
+        { "role": "Rifleman", "count": 9 },
+        { "role": "Autorifleman", "count": 2 }
+      ]
+    },
+    {
+      "name": "Support",
+      "slots": [
+        { "role": "Combat Medic", "count": 2 }
+      ]
+    }
+  ]
+}

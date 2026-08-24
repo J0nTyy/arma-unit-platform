@@ -1,0 +1,28 @@
+{
+  "categories": [
+    {
+      "name": "Command",
+      "slots": [
+        { "role": "Platoon Leader", "count": 1 },
+        { "role": "Platoon Medic", "count": 1 }
+      ]
+    },
+    {
+      "name": "Infantry",
+      "slots": [
+        { "role": "Squad Leader", "count": 2 },
+        { "role": "Team Leader", "count": 4 },
+        { "role": "Rifleman", "count": 10 },
+        { "role": "Autorifleman", "count": 4 },
+        { "role": "Marksman", "count": 2 }
+      ]
+    },
+    {
+      "name": "Support",
+      "slots": [
+        { "role": "Combat Medic", "count": 4 },
+        { "role": "Combat Engineer", "count": 4 }
+      ]
+    }
+  ]
+}

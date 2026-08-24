@@ -1,0 +1,16 @@
+[
+  {
+    "id": "OBJ-01",
+    "name": "Primary Objective Name",
+    "description": "What must be accomplished for the mission to succeed.",
+    "type": "primary",
+    "required": true
+  },
+  {
+    "id": "OBJ-02",
+    "name": "Secondary Objective Name",
+    "description": "A worthwhile extra that is not required for mission success.",
+    "type": "secondary",
+    "required": false
+  }
+]

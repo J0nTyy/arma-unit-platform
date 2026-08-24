@@ -1,0 +1,16 @@
+[
+  {
+    "id": "OBJ-01",
+    "name": "Hold Topolin Depot",
+    "description": "Prevent the enemy from overrunning the depot perimeter until bridge repairs are complete.",
+    "type": "primary",
+    "required": true
+  },
+  {
+    "id": "OBJ-02",
+    "name": "Protect Supply Trucks",
+    "description": "Keep at least one supply truck operational through all assault waves.",
+    "type": "secondary",
+    "required": false
+  }
+]

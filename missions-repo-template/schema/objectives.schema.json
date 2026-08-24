@@ -1,0 +1,60 @@
+{
+  "$defs": {
+    "Objective": {
+      "additionalProperties": false,
+      "description": "One entry of objectives.json.\n\nObjective IDs are the stable keys future Arma telemetry will report\nagainst (OBJ-01 -> completed), so they must be unique per mission.",
+      "properties": {
+        "id": {
+          "description": "Stable ID, e.g. OBJ-01",
+          "pattern": "^[A-Z][A-Z0-9-]{1,19}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 80,
+          "minLength": 3,
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/ObjectiveType"
+        },
+        "required": {
+          "title": "Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "type",
+        "required"
+      ],
+      "title": "Objective",
+      "type": "object"
+    },
+    "ObjectiveType": {
+      "enum": [
+        "primary",
+        "secondary",
+        "optional"
+      ],
+      "title": "ObjectiveType",
+      "type": "string"
+    }
+  },
+  "description": "Contents of objectives.json (a JSON array).",
+  "items": {
+    "$ref": "#/$defs/Objective"
+  },
+  "title": "MissionObjectives",
+  "type": "array",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -1,0 +1,70 @@
+{
+  "$defs": {
+    "Slot": {
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "maxLength": 60,
+          "minLength": 2,
+          "title": "Role",
+          "type": "string"
+        },
+        "count": {
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "role",
+        "count"
+      ],
+      "title": "Slot",
+      "type": "object"
+    },
+    "SlotCategory": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 40,
+          "minLength": 2,
+          "title": "Name",
+          "type": "string"
+        },
+        "slots": {
+          "items": {
+            "$ref": "#/$defs/Slot"
+          },
+          "minItems": 1,
+          "title": "Slots",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "slots"
+      ],
+      "title": "SlotCategory",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Contents of slots.json.",
+  "properties": {
+    "categories": {
+      "items": {
+        "$ref": "#/$defs/SlotCategory"
+      },
+      "minItems": 1,
+      "title": "Categories",
+      "type": "array"
+    }
+  },
+  "required": [
+    "categories"
+  ],
+  "title": "MissionSlots",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

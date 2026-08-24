@@ -1,0 +1,136 @@
+{
+  "$defs": {
+    "Difficulty": {
+      "enum": [
+        "easy",
+        "standard",
+        "hard",
+        "veteran"
+      ],
+      "title": "Difficulty",
+      "type": "string"
+    },
+    "MissionStatus": {
+      "description": "Mission lifecycle.\n\ndraft        \u2014 an idea or skeleton; files may be incomplete; not playable.\ndevelopment  \u2014 actively being built by the mission maker.\nreview       \u2014 content-complete; awaiting staff review / test session.\nready        \u2014 approved and playable; can be scheduled as an operation.\narchived     \u2014 retired from rotation; kept for history (lives in archived/).",
+      "enum": [
+        "draft",
+        "development",
+        "review",
+        "ready",
+        "archived"
+      ],
+      "title": "MissionStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Contents of mission.json.",
+  "properties": {
+    "id": {
+      "description": "Unit-wide unique mission ID, e.g. OP-001",
+      "pattern": "^[A-Z]{2,6}-\\d{2,4}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 100,
+      "minLength": 3,
+      "title": "Name",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/MissionStatus"
+    },
+    "mission_maker": {
+      "description": "Discord / unit identifier of the author",
+      "maxLength": 100,
+      "minLength": 2,
+      "title": "Mission Maker",
+      "type": "string"
+    },
+    "description": {
+      "description": "Short summary. Long-form briefing belongs in brief.md.",
+      "maxLength": 500,
+      "minLength": 10,
+      "title": "Description",
+      "type": "string"
+    },
+    "map": {
+      "maxLength": 60,
+      "minLength": 2,
+      "title": "Map",
+      "type": "string"
+    },
+    "mission_type": {
+      "maxLength": 50,
+      "minLength": 3,
+      "title": "Mission Type",
+      "type": "string"
+    },
+    "difficulty": {
+      "$ref": "#/$defs/Difficulty"
+    },
+    "minimum_players": {
+      "maximum": 300,
+      "minimum": 1,
+      "title": "Minimum Players",
+      "type": "integer"
+    },
+    "maximum_players": {
+      "maximum": 300,
+      "minimum": 1,
+      "title": "Maximum Players",
+      "type": "integer"
+    },
+    "estimated_duration_minutes": {
+      "maximum": 1440,
+      "minimum": 10,
+      "title": "Estimated Duration Minutes",
+      "type": "integer"
+    },
+    "factions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Factions",
+      "type": "array"
+    },
+    "required_mods": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Required Mods",
+      "type": "array"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "version": {
+      "description": "Semantic version, e.g. 1.0.0",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "status",
+    "mission_maker",
+    "description",
+    "map",
+    "mission_type",
+    "difficulty",
+    "minimum_players",
+    "maximum_players",
+    "estimated_duration_minutes",
+    "version"
+  ],
+  "title": "MissionMetadata",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

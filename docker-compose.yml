@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: arma
+      POSTGRES_PASSWORD: arma
+      POSTGRES_DB: arma_unit
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arma -d arma_unit"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  bot:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Inside the compose network the database host is the `db` service.
+      DATABASE_URL: postgresql+asyncpg://arma:arma@db:5432/arma_unit
+      # Bind the API to all interfaces so the published port works.
+      API_HOST: 0.0.0.0
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "alembic upgrade head && python -m app.main"
+
+volumes:
+  pgdata:

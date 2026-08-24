@@ -1,0 +1,23 @@
+[
+  {
+    "id": "OBJ-01",
+    "name": "Destroy Radar",
+    "description": "Destroy the primary radar installation at Hill 143.",
+    "type": "primary",
+    "required": true
+  },
+  {
+    "id": "OBJ-02",
+    "name": "Capture Signals Officer",
+    "description": "Locate and capture the CSAT signals officer alive.",
+    "type": "secondary",
+    "required": false
+  },
+  {
+    "id": "OBJ-03",
+    "name": "Destroy Backup Generator",
+    "description": "Destroy the backup generator powering the radar network.",
+    "type": "optional",
+    "required": false
+  }
+]

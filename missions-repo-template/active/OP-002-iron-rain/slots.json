@@ -1,0 +1,27 @@
+{
+  "categories": [
+    {
+      "name": "Command",
+      "slots": [
+        { "role": "Platoon Leader", "count": 1 }
+      ]
+    },
+    {
+      "name": "Infantry",
+      "slots": [
+        { "role": "Squad Leader", "count": 2 },
+        { "role": "Rifleman", "count": 8 },
+        { "role": "AT Specialist", "count": 4 },
+        { "role": "Autorifleman", "count": 2 }
+      ]
+    },
+    {
+      "name": "Support",
+      "slots": [
+        { "role": "Combat Medic", "count": 2 },
+        { "role": "Combat Engineer", "count": 4 },
+        { "role": "Logistics Driver", "count": 1 }
+      ]
+    }
+  ]
+}

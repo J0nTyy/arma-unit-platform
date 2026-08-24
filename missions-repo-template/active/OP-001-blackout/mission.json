@@ -1,0 +1,17 @@
+{
+  "id": "OP-001",
+  "name": "Operation Blackout",
+  "status": "ready",
+  "mission_maker": "Hammer",
+  "description": "Night raid to destroy the enemy air-defence radar network on Altis before dawn, opening a corridor for follow-on air operations.",
+  "map": "Altis",
+  "mission_type": "Direct Action",
+  "difficulty": "hard",
+  "minimum_players": 8,
+  "maximum_players": 32,
+  "estimated_duration_minutes": 120,
+  "factions": ["NATO", "CSAT"],
+  "required_mods": ["CBA_A3", "ACE3", "TFAR"],
+  "tags": ["night", "demolition", "stealth"],
+  "version": "1.2.0"
+}

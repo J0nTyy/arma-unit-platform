@@ -1,0 +1,17 @@
+{
+  "id": "OP-002",
+  "name": "Operation Iron Rain",
+  "status": "development",
+  "mission_maker": "Vector",
+  "description": "Defend the Topolin logistics hub against waves of mechanized assaults while engineers repair the damaged bridge behind the line.",
+  "map": "Livonia",
+  "mission_type": "Defense",
+  "difficulty": "standard",
+  "minimum_players": 6,
+  "maximum_players": 24,
+  "estimated_duration_minutes": 90,
+  "factions": ["NATO", "LDF", "Spetsnaz"],
+  "required_mods": ["CBA_A3", "ACE3"],
+  "tags": ["defense", "armor", "daytime"],
+  "version": "0.3.0"
+}
