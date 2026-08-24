@@ -1,7 +1,15 @@
 """The unit assistant's Discord interface.
 
-One obvious command — /ask — plus natural @mention questions in the
-configured ask channel. The bot never responds to ordinary conversation.
+Ways to talk to it:
+- /ask <question> — anywhere
+- @mention it with a question — in any channel
+- reply to (quote) someone's message and @mention it — it reads the quoted
+  message plus recent chat and answers in context
+- reply to one of ITS OWN messages — continues the conversation, no mention
+  needed
+
+It never reacts to ordinary conversation it isn't addressed in. Reading
+recent channel messages requires Discord's Message Content Intent.
 """
 
 from __future__ import annotations
@@ -24,6 +32,8 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 _MESSAGE_LIMIT = 1990
+_HISTORY_MESSAGES = 15      # recent channel messages given as context
+_HISTORY_CHAR_BUDGET = 1600  # keep the token bill sane
 
 
 def _chunk(text: str) -> list[str]:
@@ -39,11 +49,47 @@ def _chunk(text: str) -> list[str]:
     return chunks or ["…"]
 
 
+def _is_staff_channel(channel) -> bool:
+    """A channel ordinary members can't see counts as a staff channel."""
+    guild = getattr(channel, "guild", None)
+    if guild is None:
+        return False
+    try:
+        return not channel.permissions_for(guild.default_role).view_channel
+    except AttributeError:
+        return False
+
+
+async def _recent_chat(channel, *, before=None, bot_user=None) -> str | None:
+    """Compact transcript of the channel's recent messages (oldest first)."""
+    try:
+        lines: list[str] = []
+        async for message in channel.history(limit=_HISTORY_MESSAGES, before=before):
+            content = message.content.strip()
+            if not content:
+                continue
+            author = "you (the assistant)" if message.author == bot_user else message.author.display_name
+            lines.append(f"{author}: {content[:200]}")
+        lines.reverse()
+        transcript = "\n".join(lines)
+        return transcript[-_HISTORY_CHAR_BUDGET:] if transcript else None
+    except (discord.Forbidden, discord.HTTPException):
+        return None
+
+
 class AssistantCog(commands.Cog):
     def __init__(self, bot: "UnitBot") -> None:
         self.bot = bot
 
-    async def _answer(self, member: discord.Member, question: str) -> str:
+    async def _answer(
+        self,
+        member: discord.Member,
+        question: str,
+        *,
+        chat_context: str | None = None,
+        quoted: str | None = None,
+        staff_channel: bool = False,
+    ) -> str:
         service = self.bot.assistant_service
         if service is None:
             raise AINotConfiguredError()
@@ -51,7 +97,10 @@ class AssistantCog(commands.Cog):
         context = ToolContext(
             bot=self.bot, guild_id=member.guild.id, user_id=member.id, level=level
         )
-        return await service.ask(context, question)
+        return await service.ask(
+            context, question,
+            chat_context=chat_context, quoted=quoted, staff_channel=staff_channel,
+        )
 
     @app_commands.command(
         name="ask",
@@ -63,7 +112,12 @@ class AssistantCog(commands.Cog):
     async def ask(self, interaction: discord.Interaction, question: str) -> None:
         await interaction.response.defer(thinking=True)
         assert isinstance(interaction.user, discord.Member)
-        answer = await self._answer(interaction.user, question)
+        chat_context = await _recent_chat(interaction.channel, bot_user=self.bot.user)
+        answer = await self._answer(
+            interaction.user, question,
+            chat_context=chat_context,
+            staff_channel=_is_staff_channel(interaction.channel),
+        )
         chunks = _chunk(f"> {question[:180]}\n\n{answer}")
         await interaction.followup.send(chunks[0])
         for chunk in chunks[1:3]:
@@ -71,29 +125,62 @@ class AssistantCog(commands.Cog):
 
     @commands.Cog.listener("on_message")
     async def on_message(self, message: discord.Message) -> None:
-        """@UnitBot <question> — works in any channel, but only when the bot
-        is explicitly mentioned. It never reacts to ordinary conversation."""
-        if message.author.bot or message.guild is None:
+        if message.author.bot or message.guild is None or self.bot.user is None:
             return
-        if self.bot.user is None or self.bot.user not in message.mentions:
+
+        mentioned = self.bot.user in message.mentions
+        quoted: str | None = None
+        referenced: discord.Message | None = None
+        if message.reference is not None:
+            referenced = message.reference.resolved
+            if referenced is None and message.reference.message_id:
+                try:
+                    referenced = await message.channel.fetch_message(
+                        message.reference.message_id
+                    )
+                except discord.HTTPException:
+                    referenced = None
+
+        reply_to_bot = referenced is not None and referenced.author == self.bot.user
+        # Triggers: an explicit @mention anywhere, OR replying to the bot's
+        # own message (natural conversation continuation, no ping needed).
+        if not mentioned and not reply_to_bot:
             return
-        if message.reference is not None and not message.content.startswith(
-            (f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>")
-        ):
-            return  # a reply that merely pings the bot isn't a question for it
+        # A reply to a HUMAN whose ping list happens to include the bot only
+        # counts when the bot is explicitly mentioned in the text itself.
+        if referenced is not None and not reply_to_bot and f"{self.bot.user.id}" not in message.content:
+            return
+
         question = re.sub(rf"<@!?{self.bot.user.id}>", "", message.content).strip()
-        if not question:
+        if not question and not referenced:
             await message.reply(
-                "Ask me anything about the unit — missions, operations, rules, "
-                "getting started. You can also use `/ask`.",
+                "Ask me anything about the unit — missions, ops, rules, getting started. o7",
                 mention_author=False,
             )
             return
         if not isinstance(message.author, discord.Member):
             return
+
+        if referenced is not None and referenced.content:
+            author = (
+                "you (the assistant)"
+                if reply_to_bot
+                else referenced.author.display_name
+            )
+            quoted = f'{author}: "{referenced.content[:400]}"'
+            if not question:
+                question = "What do you make of the quoted message?"
+
         try:
             async with message.channel.typing():
-                answer = await self._answer(message.author, question)
+                chat_context = await _recent_chat(
+                    message.channel, before=message, bot_user=self.bot.user
+                )
+                answer = await self._answer(
+                    message.author, question,
+                    chat_context=chat_context, quoted=quoted,
+                    staff_channel=_is_staff_channel(message.channel),
+                )
         except AppError as error:
             await message.reply(f"⚠️ {error.user_message}", mention_author=False)
             return
@@ -106,8 +193,11 @@ class AssistantCog(commands.Cog):
             return
         first = True
         for chunk in _chunk(answer)[:3]:
-            await message.reply(chunk, mention_author=False) if first else await message.channel.send(chunk)
-            first = False
+            if first:
+                await message.reply(chunk, mention_author=False)
+                first = False
+            else:
+                await message.channel.send(chunk)
 
 
 async def setup(bot: "UnitBot") -> None:

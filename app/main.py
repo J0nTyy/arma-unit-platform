@@ -67,9 +67,10 @@ async def _run(settings: Settings) -> bool:
 
                 if isinstance(exception, discord.PrivilegedIntentsRequired):
                     log.error(
-                        "Discord refused the connection: the SERVER MEMBERS INTENT "
-                        "is not enabled. Fix: https://discord.com/developers/applications "
-                        "-> your app -> Bot -> enable 'Server Members Intent' -> restart."
+                        "Discord refused the connection: privileged intents missing. "
+                        "Fix: https://discord.com/developers/applications -> your app "
+                        "-> Bot -> enable BOTH 'Server Members Intent' and "
+                        "'Message Content Intent' -> restart."
                     )
                 else:
                     log.error(

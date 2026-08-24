@@ -10,13 +10,49 @@ from discord.ext import commands
 
 from app import __version__
 from app.bot import embeds
-from app.bot.permissions import PermissionLevel, require
+from app.bot.permissions import PermissionLevel, ensure_level, require
+from app.bot.views.components import respond_error
 from app.bot.views.publish import refresh_guild_publications
 from app.bot.views.setup import SetupHubView, build_setup_embed
 from app.errors import MissionsNotConfiguredError
 
 if TYPE_CHECKING:
     from app.bot.bot import UnitBot
+
+
+class ForgetMemoryView(discord.ui.View):
+    """Select-to-delete for the assistant's server memory."""
+
+    def __init__(self, bot: "UnitBot", memories) -> None:
+        super().__init__(timeout=600)
+        self._bot = bot
+        select = discord.ui.Select(
+            placeholder="🗑️ Forget a memory…",
+            options=[
+                discord.SelectOption(
+                    label=f"#{memory.id} {memory.content[:80]}"[:100], value=str(memory.id)
+                )
+                for memory in memories[:25]
+            ],
+        )
+        select.callback = self._on_forget  # type: ignore[method-assign]
+        self._select = select
+        self.add_item(select)
+
+    async def _on_forget(self, interaction: discord.Interaction) -> None:
+        try:
+            await ensure_level(interaction, PermissionLevel.STAFF)
+            memory_id = int(self._select.values[0])
+            removed = await self._bot.memory_service.forget(
+                interaction.guild.id, memory_id  # type: ignore[union-attr]
+            )
+            await interaction.response.send_message(
+                f"🗑️ Memory `#{memory_id}` {'forgotten' if removed else 'was already gone'}. "
+                "Run `/unit memories` again to see the updated list.",
+                ephemeral=True,
+            )
+        except Exception as error:  # noqa: BLE001
+            await respond_error(interaction, error)
 
 
 class UnitCog(commands.Cog):
@@ -85,6 +121,35 @@ class UnitCog(commands.Cog):
             )
             embed.add_field(name="Could not be indexed", value=failure_lines[:1024], inline=False)
         await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @unit.command(name="memories", description="Review and prune the assistant's server memory")
+    @require(PermissionLevel.STAFF)
+    async def unit_memories(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        assert interaction.guild is not None
+        memories = await self.bot.memory_service.list_recent(interaction.guild.id)
+        total = await self.bot.memory_service.count(interaction.guild.id)
+        if not memories:
+            await interaction.followup.send(
+                "🧠 Server memory is empty — the assistant saves facts as it "
+                "learns them from conversations.",
+                ephemeral=True,
+            )
+            return
+        lines = [
+            f"`#{memory.id}` {memory.content[:150]} — <t:{int(memory.created_at.timestamp())}:R>"
+            if memory.created_at.tzinfo
+            else f"`#{memory.id}` {memory.content[:150]}"
+            for memory in memories
+        ]
+        embed = discord.Embed(
+            title=f"🧠 Server memory ({total} total, newest {len(memories)})",
+            description="\n".join(lines)[:4000],
+            colour=embeds.BLURPLE,
+        )
+        await interaction.followup.send(
+            embed=embed, view=ForgetMemoryView(self.bot, memories), ephemeral=True
+        )
 
     @unit.command(name="diagnostics", description="Bot, database and repository health")
     @require(PermissionLevel.STAFF)

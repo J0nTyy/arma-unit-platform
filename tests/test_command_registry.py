@@ -42,8 +42,12 @@ async def bot(database, monkeypatch):
 async def test_expected_commands_registered(bot):
     top_level = sorted(c.name for c in bot.tree.get_commands())
     assert top_level == [
-        "about", "ask", "help", "members", "mission", "missions",
-        "operation", "operations", "ping", "profile", "stats", "unit",
+        "about", "ask", "help", "members", "mission", "missions", "operation",
+        "operations", "ping", "profile", "stats", "training", "unit",
+    ]
+    training = bot.tree.get_command("training")
+    assert sorted(c.name for c in training.commands) == [
+        "certs", "grant", "info", "revoke",
     ]
 
     mission = bot.tree.get_command("mission")
@@ -53,7 +57,9 @@ async def test_expected_commands_registered(bot):
         "attendance", "create", "manage", "view",
     ]
     unit = bot.tree.get_command("unit")
-    assert sorted(c.name for c in unit.commands) == ["diagnostics", "setup", "sync"]
+    assert sorted(c.name for c in unit.commands) == [
+        "diagnostics", "memories", "setup", "sync",
+    ]
 
 
 async def test_every_command_has_a_description(bot):

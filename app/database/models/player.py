@@ -47,7 +47,8 @@ ROLE_PREFERENCES = {
     "leadership": "⭐ Leadership",
 }
 
-# Qualification catalog (staff-granted; training system comes later).
+# Qualification/certification catalog. Trainers grant these via /training;
+# granting also assigns the matching Discord role (created if missing).
 QUALIFICATIONS = {
     "medic": "🚑 Combat Medic",
     "marksman": "🎯 Marksman",
@@ -56,6 +57,21 @@ QUALIFICATIONS = {
     "eod": "💣 EOD",
     "engineer": "🔧 Engineer",
     "leadership": "⭐ Leadership",
+}
+
+# ── CERT REQUIREMENTS — edit these to match unit policy ──────────────────────
+# Eligibility conditions checked by /training certs and shown to players.
+#   min_attended: finalized operations attended before training is allowed
+#   requires:     other certs that must be held first
+# These are starting values — tune freely; nothing else needs to change.
+CERT_REQUIREMENTS: dict[str, dict] = {
+    "medic":      {"min_attended": 2, "requires": ()},
+    "marksman":   {"min_attended": 2, "requires": ()},
+    "engineer":   {"min_attended": 2, "requires": ()},
+    "pilot":      {"min_attended": 4, "requires": ()},
+    "jtac":       {"min_attended": 4, "requires": ("marksman",)},
+    "eod":        {"min_attended": 3, "requires": ("engineer",)},
+    "leadership": {"min_attended": 6, "requires": ()},
 }
 
 EXPERIENCE_LEVELS = {

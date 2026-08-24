@@ -23,6 +23,7 @@ from app.services import (
     AttendanceService,
     GuildService,
     KnowledgeService,
+    MemoryService,
     MissionService,
     OperationService,
     PlayerService,
@@ -40,6 +41,7 @@ EXTENSIONS = (
     "app.bot.commands.operations",
     "app.bot.commands.assistant",
     "app.bot.commands.profiles",
+    "app.bot.commands.training",
     "app.bot.commands.unit",
     "app.bot.events.lifecycle",
     "app.bot.events.scheduler",
@@ -49,9 +51,12 @@ EXTENSIONS = (
 class UnitBot(commands.Bot):
     def __init__(self, settings: Settings, database: Database) -> None:
         intents = discord.Intents.default()
-        # Privileged: requires "Server Members Intent" enabled in the Discord
-        # developer portal (Bot page). Powers join/leave profile tracking.
+        # Privileged intents — BOTH must be enabled in the Discord developer
+        # portal (Bot page) or the gateway refuses the connection:
+        #   Server Members Intent  -> join/leave profile tracking
+        #   Message Content Intent -> chat context for the assistant & chatter
         intents.members = True
+        intents.message_content = True
         super().__init__(
             command_prefix=commands.when_mentioned,  # slash commands only
             intents=intents,
@@ -67,6 +72,7 @@ class UnitBot(commands.Bot):
         self.publication_service = PublicationService(database)
         self.player_service = PlayerService(database)
         self.attendance_service = AttendanceService(database)
+        self.memory_service = MemoryService(database)
 
         # Mission repository integration is optional; /mission commands explain
         # the required setup when it is not configured.

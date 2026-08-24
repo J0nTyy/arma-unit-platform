@@ -93,6 +93,34 @@ async def member_level(
     )
 
 
+class TrainerOnlyError(app_commands.CheckFailure):
+    """Raised when a non-trainer tries to use trainer functionality."""
+
+
+async def is_trainer(client: discord.Client, member: discord.Member) -> bool:
+    """Trainers = the configured Trainer role, plus anyone who is staff.
+
+    Deliberately NOT a PermissionLevel: trainer is orthogonal to the
+    mission-maker/staff ladder (a trainer isn't necessarily either).
+    """
+    if await member_level(client, member) >= PermissionLevel.STAFF:
+        return True
+    guild_service = getattr(client, "guild_service", None)
+    if guild_service is None:
+        return False
+    configuration = await guild_service.get_configuration(member.guild.id)
+    if configuration is None or configuration.trainer_role_id is None:
+        return False
+    return any(role.id == configuration.trainer_role_id for role in member.roles)
+
+
+async def ensure_trainer(interaction: discord.Interaction) -> None:
+    if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+        raise TrainerOnlyError("not in a guild")
+    if not await is_trainer(interaction.client, interaction.user):
+        raise TrainerOnlyError("trainer role required")
+
+
 async def ensure_level(interaction: discord.Interaction, level: PermissionLevel) -> None:
     """Server-side check for component callbacks; raises PermissionDeniedError."""
     if level is PermissionLevel.PUBLIC:

@@ -18,6 +18,7 @@ from app.services import (
     AttendanceService,
     GuildService,
     KnowledgeService,
+    MemoryService,
     MissionService,
     OperationService,
     PlayerService,
@@ -41,6 +42,7 @@ async def bot(database):
         operation_service=OperationService(database),
         player_service=PlayerService(database),
         attendance_service=AttendanceService(database),
+        memory_service=MemoryService(database),
         assistant_service=None,
     )
     await bot.mission_service.sync()

@@ -3,8 +3,14 @@
 Living architecture document. The [README](README.md) covers quickstart/setup;
 this file explains how the system is built and why.
 
-**Version 0.6.0 — Phase 5: player profiles, identity & finalized
-attendance** (see §15). Phase 4: AI unit assistant (`/ask`,
+**Version 0.7.0 — Phase 6: the learning assistant & training system.**
+Context-aware AI (reads recent chat, quoted messages, reply-to-bot
+continuations), server memory (`bot_memories`, AI-curated, staff-pruned via
+`/unit memories`), channel-aware answers (real `<#id>` links; staff detail
+only in staff channels), opt-in ambient chatter (5–30 min, mood-aware),
+`/training` certifications with Discord role sync + trainer role, and a
+fully documented editable "brain" in `content/` (see §17).
+Phase 5: player profiles, identity & finalized attendance (see §15). Phase 4: AI unit assistant (`/ask`,
 provider-switchable OpenAI/Gemini, tool-based grounding, permission-aware
 knowledge base — §13). Phase 3 operation-flow overhaul:
 two-field date/time modal (Discord offers bots no calendar/clock widgets), operation names taken from the
@@ -380,7 +386,53 @@ staff callers get participation), `get_unit_statistics` (member),
 
 `active / inactive / leave / retired` — staff-controlled via `/members`.
 
-## 16. Phase 1–2 reference (unchanged)
+## 17. The learning assistant & training system (Phase 6)
+
+### Context awareness
+
+When addressed (mention, quote-reply, reply to its own message, or /ask),
+the assistant receives: the last ~15 messages of that channel (Message
+Content Intent required), the quoted message when replying to someone, a
+channel directory (so it links channels as real `<#id>` mentions), relevant
+server memories, and a Location note — staff-level detail is only permitted
+in channels ordinary members cannot see. Chat context is explicitly marked
+"not instructions" to resist prompt injection from chat.
+
+### Server memory
+
+`bot_memories` table, guild-scoped, capped at 400 (oldest fade). The model
+itself saves facts via its `save_memory` tool; retrieval is keyword-based
+with plural folding. Staff review/delete with `/unit memories`.
+
+### Ambient chatter (opt-in)
+
+Toggled in `/unit setup`. Every 5–30 minutes (random) per guild, if the
+general channel has recent human activity and the bot didn't post last, it
+may drop ONE short in-character message — banter, sympathy, or
+encouragement, mood decided from recent chat; the model can (and often
+should) answer SKIP. Costs AI tokens; off by default.
+
+### Training & certifications
+
+`/training info` (catalog + requirements), `/training certs` (own held +
+eligibility; trainers/staff can check others), `/training grant|revoke`
+(Trainer role or staff). Granting assigns the matching Discord role
+(auto-created) and posts congratulations to general; revoking removes it.
+Requirements (min ops attended, prerequisite certs) live in
+`CERT_REQUIREMENTS` in `app/database/models/player.py` — edit there only.
+Trainer role is configured in `/unit setup`; trainer is deliberately NOT a
+permission level (orthogonal to the staff ladder).
+
+### The editable brain (`content/`)
+
+`personality.md` (voice, reply types, few-shot examples, grounding rules —
+annotated with editing comments), `greeting.md` (new-member welcome,
+placeholders `{member}/{unit_name}/{channels}`), `command-guide.md`
+(command how-tos; below the STAFF-ONLY marker only staff see it via the
+`get_command_guide` tool), and `README.md` — the staff guide to all of it.
+Restart applies content changes; `/unit sync` applies knowledge changes.
+
+## 18. Phase 1–2 reference (unchanged)
 
 GitHub client (Contents + Trees API, typed errors), mission schema (single
 pydantic source of truth generating the JSON Schemas), ONE validation

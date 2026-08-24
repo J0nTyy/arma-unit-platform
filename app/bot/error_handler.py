@@ -13,7 +13,7 @@ import uuid
 import discord
 from discord import app_commands
 
-from app.bot.permissions import PermissionDeniedError
+from app.bot.permissions import PermissionDeniedError, TrainerOnlyError
 from app.errors import (
     AppError,
     DatabaseError,
@@ -57,6 +57,12 @@ async def handle_app_command_error(
         await _respond(
             interaction,
             f"🔒 This command requires **{original.required.name.title()}** access.",
+        )
+    elif isinstance(original, TrainerOnlyError):
+        log.info("Trainer check failed: /%s by user %s", command, interaction.user.id)
+        await _respond(
+            interaction,
+            "🔒 This needs the **Trainer** role (set in `/unit setup`) or staff access.",
         )
     elif isinstance(original, app_commands.CheckFailure):
         log.info("Check failed: /%s by user %s in guild %s", command, interaction.user.id, guild_id)

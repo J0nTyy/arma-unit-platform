@@ -41,6 +41,7 @@ _HELP_MEMBER = (
     (
         "👤 You",
         "`/profile` — your unit profile, preferences and participation\n"
+        "`/training certs` — your certifications and what you can train for\n"
         "`/stats` — unit-wide participation statistics",
     ),
 )
@@ -53,7 +54,11 @@ _HELP_MAKER = (
 _HELP_STAFF = (
     "🛡️ Staff",
     "`/operation manage` — lock, reschedule, complete or cancel an operation\n"
-    "`/unit sync` — refresh missions from GitHub\n"
+    "`/operation attendance` — finalize who actually attended\n"
+    "`/members` — member status, onboarding, qualifications\n"
+    "`/training grant` — certify a member (trainers too)\n"
+    "`/unit sync` — refresh missions & knowledge from GitHub\n"
+    "`/unit memories` — review the assistant's server memory\n"
     "`/unit diagnostics` — bot / database / repository health",
 )
 _HELP_ADMIN = (

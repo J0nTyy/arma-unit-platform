@@ -8,6 +8,7 @@ from app.services.attendance import (
 from app.services.guilds import GuildService
 from app.services.players import PlayerService
 from app.services.knowledge import KnowledgeService, KnowledgeSyncResult
+from app.services.memories import MemoryService
 from app.services.missions import MissionService, SyncFailure, SyncResult
 from app.services.operations import (
     AttendanceOutcome,
@@ -30,6 +31,7 @@ __all__ = [
     "UnitStats",
     "KnowledgeService",
     "KnowledgeSyncResult",
+    "MemoryService",
     "MissionService",
     "OperationService",
     "ProfileSummary",

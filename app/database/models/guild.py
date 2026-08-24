@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, String, func, true
+from sqlalchemy import BigInteger, Boolean, DateTime, String, false, func, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.models.base import Base
@@ -48,6 +48,12 @@ class GuildConfiguration(Base):
     # Roles (fall back to Discord's Manage Server permission when unset)
     staff_role_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     mission_maker_role_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # Members holding this role may grant/revoke training certifications.
+    trainer_role_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    # Ambient chatter: occasional in-character messages in the general
+    # channel (opt-in — costs AI tokens and personality is a taste thing).
+    chatter_enabled: Mapped[bool] = mapped_column(Boolean, server_default=false())
 
     # Channels
     operations_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

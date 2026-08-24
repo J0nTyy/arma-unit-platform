@@ -26,6 +26,8 @@ _UPDATABLE_FIELDS = {
     "reminders_enabled",
     "staff_role_id",
     "mission_maker_role_id",
+    "trainer_role_id",
+    "chatter_enabled",
     "operations_channel_id",
     "missions_channel_id",
     "announcements_channel_id",

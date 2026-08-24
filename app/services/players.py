@@ -15,7 +15,10 @@ from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.database import Database
+from dataclasses import dataclass
+
 from app.database.models.player import (
+    CERT_REQUIREMENTS,
     EXPERIENCE_LEVELS,
     QUALIFICATIONS,
     ROLE_PREFERENCES,
@@ -23,13 +26,26 @@ from app.database.models.player import (
     Player,
     PlayerQualification,
 )
-from app.database.repositories.players import PlayerRepository, QualificationRepository
+from app.database.repositories.players import (
+    AttendanceRecordRepository,
+    PlayerRepository,
+    QualificationRepository,
+)
 from app.errors import DatabaseError, ValidationError
 from app.services.guilds import validate_timezone
 
 log = logging.getLogger(__name__)
 
 _STEAM_ID_RE = re.compile(r"^\d{17}$")
+
+
+@dataclass(frozen=True)
+class CertStatus:
+    cert: str
+    label: str
+    held: bool
+    eligible: bool          # meets requirements (ignoring already-held)
+    missing: tuple[str, ...]  # human-readable unmet requirements
 
 # Fields members may set about themselves via /profile setup.
 _SELF_SERVICE_FIELDS = {
@@ -207,6 +223,46 @@ class PlayerService:
                 return await repository.grant(player.id, qualification, granted_by)
         except SQLAlchemyError as exc:
             raise DatabaseError("grant qualification failed") from exc
+
+    async def cert_eligibility(self, guild_id: int, discord_user_id: int) -> list["CertStatus"]:
+        """Per-cert status: held / eligible-to-train / what's still missing.
+
+        Rules live in CERT_REQUIREMENTS (models/player.py) — edit them there.
+        """
+        try:
+            async with self._database.session() as session:
+                player = await PlayerRepository(session).get(guild_id, discord_user_id)
+                held: set[str] = set()
+                attended = 0
+                if player is not None:
+                    held = {
+                        q.qualification
+                        for q in await QualificationRepository(session).list_for(player.id)
+                    }
+                    counts = await AttendanceRecordRepository(session).counts_for_player(
+                        player.id
+                    )
+                    attended = counts.get("attended", 0)
+        except SQLAlchemyError as exc:
+            raise DatabaseError("cert_eligibility failed") from exc
+
+        statuses = []
+        for cert, label in QUALIFICATIONS.items():
+            requirements = CERT_REQUIREMENTS.get(cert, {})
+            missing: list[str] = []
+            need_ops = requirements.get("min_attended", 0)
+            if attended < need_ops:
+                missing.append(f"attend {need_ops - attended} more operation(s)")
+            for prerequisite in requirements.get("requires", ()):
+                if prerequisite not in held:
+                    missing.append(f"needs {QUALIFICATIONS.get(prerequisite, prerequisite)}")
+            statuses.append(
+                CertStatus(
+                    cert=cert, label=label, held=cert in held,
+                    eligible=not missing, missing=tuple(missing),
+                )
+            )
+        return statuses
 
     async def revoke_qualification(
         self, guild_id: int, discord_user_id: int, qualification: str

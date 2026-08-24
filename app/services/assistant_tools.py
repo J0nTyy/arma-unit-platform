@@ -408,6 +408,36 @@ async def _get_attendance_leaders(context: ToolContext, _: dict) -> str:
     )
 
 
+async def _save_memory(context: ToolContext, arguments: dict) -> str:
+    memory_service = getattr(context.bot, "memory_service", None)
+    if memory_service is None:
+        return "Server memory is not available."
+    fact = str(arguments.get("fact", "")).strip()
+    if len(fact) < 10:
+        return "Error: a memory needs to be a meaningful fact (10+ characters)."
+    await memory_service.remember(context.guild_id, fact, context.user_id)
+    return "Noted — saved to server memory."
+
+
+_GUIDE_FILE = "content/command-guide.md"
+_STAFF_MARKER = "<!-- STAFF-ONLY BELOW -->"
+
+
+async def _get_command_guide(context: ToolContext, _: dict) -> str:
+    """Command how-tos. Members get the member section; staff get everything
+    (the split is the STAFF-ONLY marker inside content/command-guide.md)."""
+    from pathlib import Path
+
+    try:
+        guide = Path(_GUIDE_FILE).read_text(encoding="utf-8")
+    except OSError:
+        return "The command guide file is missing — tell the user to use /help."
+    member_part, _, staff_part = guide.partition(_STAFF_MARKER)
+    if context.level >= PermissionLevel.STAFF and staff_part:
+        return (member_part + "\n" + staff_part)[:_RESULT_CHAR_LIMIT]
+    return member_part[:_RESULT_CHAR_LIMIT]
+
+
 def build_default_registry() -> ToolRegistry:
     member = PermissionLevel.MEMBER
     return ToolRegistry(
@@ -485,6 +515,22 @@ def build_default_registry() -> ToolRegistry:
                 "get_attendance_leaders",
                 "Staff only: highest attendance counts this month.",
                 _NO_PARAMS, PermissionLevel.STAFF, _get_attendance_leaders,
+            ),
+            ToolSpec(
+                "save_memory",
+                "Save a short durable fact to server memory — use when someone "
+                "shares something worth remembering long-term (decisions, "
+                "preferences, recurring schedules, unit in-jokes). Not for "
+                "trivia or things already in the docs.",
+                _params(fact={"type": "string", "description": "The fact, one sentence"}),
+                member, _save_memory,
+            ),
+            ToolSpec(
+                "get_command_guide",
+                "Step-by-step instructions for the bot's commands. Use when "
+                "someone asks HOW to do something with the bot (publish a "
+                "mission, schedule an op, set up channels, finalize attendance).",
+                _NO_PARAMS, member, _get_command_guide,
             ),
         ]
     )

@@ -87,6 +87,7 @@ COMMON_TIMEZONES = (
 _ROLE_SETTINGS = (
     ("staff_role_id", "Staff role"),
     ("mission_maker_role_id", "Mission Maker role"),
+    ("trainer_role_id", "Trainer role"),
 )
 
 
@@ -132,7 +133,8 @@ def build_setup_embed(guild: discord.Guild, configuration: GuildConfiguration) -
         value=(
             f"**Unit name:** {configuration.unit_name or '*not set*'}\n"
             f"**Timezone:** {configuration.timezone or '⚠️ *not set — required for scheduling*'}\n"
-            f"**Reminders:** {'✅ enabled' if configuration.reminders_enabled else '⛔ disabled'}"
+            f"**Reminders:** {'✅ enabled' if configuration.reminders_enabled else '⛔ disabled'}\n"
+            f"**Ambient chatter:** {'✅ enabled' if configuration.chatter_enabled else '⛔ disabled'}"
         ),
         inline=False,
     )
@@ -159,6 +161,10 @@ class SetupHubView(discord.ui.View):
             discord.SelectOption(label="Timezone", value="timezone", emoji="🕒"),
             discord.SelectOption(label="Unit name", value="unit_name", emoji="🏷️"),
             discord.SelectOption(label="Reminders on/off", value="reminders_enabled", emoji="⏰"),
+            discord.SelectOption(
+                label="Ambient chatter on/off", value="chatter_enabled", emoji="💬",
+                description="Occasional in-character messages in general",
+            ),
         ]
         chooser = discord.ui.Select(
             placeholder="Choose a setting to change…", options=options, row=0
@@ -218,16 +224,17 @@ class SetupHubView(discord.ui.View):
                     row=1,
                 )
                 picker.callback = self._on_timezone_picked  # type: ignore[method-assign]
-            else:  # reminders_enabled
+            else:  # reminders_enabled / chatter_enabled toggles
+                noun = "reminders" if setting == "reminders_enabled" else "ambient chatter"
                 picker = discord.ui.Select(
-                    placeholder="Reminders…",
+                    placeholder=f"{noun.title()}…",
                     options=[
-                        discord.SelectOption(label="Enable reminders", value="on", emoji="✅"),
-                        discord.SelectOption(label="Disable reminders", value="off", emoji="⛔"),
+                        discord.SelectOption(label=f"Enable {noun}", value="on", emoji="✅"),
+                        discord.SelectOption(label=f"Disable {noun}", value="off", emoji="⛔"),
                     ],
                     row=1,
                 )
-                picker.callback = self._on_reminders_picked  # type: ignore[method-assign]
+                picker.callback = self._on_toggle_picked  # type: ignore[method-assign]
 
             self._swap_picker(picker)
             await interaction.response.edit_message(view=self)
@@ -261,11 +268,11 @@ class SetupHubView(discord.ui.View):
         except Exception as error:  # noqa: BLE001
             await respond_error(interaction, error)
 
-    async def _on_reminders_picked(self, interaction: discord.Interaction) -> None:
+    async def _on_toggle_picked(self, interaction: discord.Interaction) -> None:
         try:
             await ensure_level(interaction, PermissionLevel.ADMIN)
             value = self._picker.values[0] == "on"  # type: ignore[union-attr]
-            await self._save(interaction, reminders_enabled=value)
+            await self._save(interaction, **{self._pending_setting: value})  # type: ignore[arg-type]
         except Exception as error:  # noqa: BLE001
             await respond_error(interaction, error)
 

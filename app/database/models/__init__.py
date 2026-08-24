@@ -3,6 +3,7 @@
 from app.database.models.base import Base
 from app.database.models.guild import CHANNEL_KINDS, GuildConfiguration
 from app.database.models.knowledge import KnowledgeDocument
+from app.database.models.memory import BotMemory
 from app.database.models.mission import MissionIndexEntry
 from app.database.models.player import (
     EXPERIENCE_LEVELS,
@@ -30,6 +31,7 @@ __all__ = [
     "AttendanceRecord",
     "AttendanceStatus",
     "Base",
+    "BotMemory",
     "EXPERIENCE_LEVELS",
     "FinalAttendance",
     "MemberStatus",
