@@ -429,6 +429,135 @@ def brief_message_chunks(
     return chunks or [f"# 📖  {title.upper()} — OPERATION BRIEFING"]
 
 
+# --- players -------------------------------------------------------------------
+
+MEMBER_STATUS_BADGE = {
+    "active": "🟢 Active",
+    "inactive": "⚪ Inactive",
+    "leave": "🟡 On leave",
+    "retired": "⚫ Retired",
+}
+
+
+def profile_embed(
+    player,
+    qualifications: list,
+    *,
+    stats=None,           # PlayerStats | None — only for self/staff viewers
+    history: list | None = None,
+    viewer: str = "member",  # "own" | "member" | "staff"
+) -> discord.Embed:
+    """The member profile card. Visibility is decided by the CALLER — pass
+    stats/history only when the viewer is the member themself or staff."""
+    from app.database.models.player import (  # local import avoids cycles
+        EXPERIENCE_LEVELS,
+        QUALIFICATIONS,
+        ROLE_PREFERENCES,
+    )
+
+    badge = MEMBER_STATUS_BADGE.get(player.active_status, player.active_status)
+    embed = discord.Embed(
+        title=f"🪖  {player.display_name.upper()}",
+        description=f"{badge}  ·  member since <t:{unix_ts(player.join_date)}:D>",
+        colour=GREEN if player.active_status == "active" else GREY,
+    )
+    if player.bio:
+        embed.description += f"\n\n> {player.bio}"
+
+    preferences = []
+    if player.primary_role:
+        preferences.append(ROLE_PREFERENCES.get(player.primary_role, player.primary_role))
+    if player.secondary_role:
+        preferences.append(ROLE_PREFERENCES.get(player.secondary_role, player.secondary_role))
+    preference_value = " · ".join(preferences) if preferences else "*not set yet*"
+    if player.arma_experience:
+        preference_value += f"\n{EXPERIENCE_LEVELS.get(player.arma_experience, '')}"
+    embed.add_field(name="🎯 PREFERENCES", value=preference_value, inline=False)
+
+    if qualifications:
+        embed.add_field(
+            name="🏅 QUALIFICATIONS",
+            value="\n".join(
+                QUALIFICATIONS.get(q.qualification, q.qualification) for q in qualifications
+            ),
+            inline=False,
+        )
+    else:
+        embed.add_field(name="🏅 QUALIFICATIONS", value="*None yet*", inline=False)
+
+    if stats is not None:
+        lines = [
+            f"Signed up: **{stats.signups}** · Attended: **{stats.attended}** · "
+            f"Absent: **{stats.absent}** · Excused: **{stats.excused}**"
+        ]
+        if stats.rate is not None:
+            lines.append(f"Attendance rate: **{stats.rate:.0f}%**")
+        if history:
+            icon = {"attended": "🟢", "absent": "🔴", "excused": "🟡"}
+            lines.append(
+                "\n".join(
+                    f"{icon.get(status, '•')} {name} — <t:{unix_ts(when)}:d>"
+                    for name, when, status in history[:5]
+                )
+            )
+        embed.add_field(name="📊 PARTICIPATION", value="\n".join(lines), inline=False)
+
+    footer = []
+    if viewer == "own":
+        footer.append("Only you and staff can see your participation stats")
+        if player.timezone:
+            footer.append(f"timezone: {player.timezone}")
+        if player.steam_id:
+            footer.append("Steam linked ✓")
+    elif viewer == "staff":
+        footer.append(f"onboarding: {player.onboarding_status}")
+        if player.left_at:
+            footer.append("⚠️ left the Discord server")
+    if footer:
+        embed.set_footer(text=" · ".join(footer))
+    return embed
+
+
+def unit_stats_embed(stats, unit_name: str | None) -> discord.Embed:
+    embed = discord.Embed(
+        title=f"📊  {unit_name or 'Unit'} — Statistics",
+        colour=BLURPLE,
+    )
+    embed.add_field(
+        name="🪖 UNIT",
+        value=(
+            f"Active members: **{stats.active_members}**\n"
+            f"Operations completed: **{stats.operations_completed}**\n"
+            f"Operations this month: **{stats.operations_this_month}**"
+        ),
+        inline=False,
+    )
+    operation_lines = []
+    if stats.average_attended_per_operation is not None:
+        operation_lines.append(
+            f"Average attendance: **{stats.average_attended_per_operation:.1f}** players/op"
+        )
+    if stats.overall_attendance_rate is not None:
+        operation_lines.append(
+            f"Unit attendance rate: **{stats.overall_attendance_rate:.0f}%**"
+        )
+    if stats.most_attended:
+        operation_lines.append(
+            f"Most attended: **{stats.most_attended[0]}** ({stats.most_attended[1]} attended)"
+        )
+    if stats.largest_signup:
+        operation_lines.append(
+            f"Largest signup: **{stats.largest_signup[0]}** ({stats.largest_signup[1]} signed up)"
+        )
+    embed.add_field(
+        name="🎯 OPERATIONS",
+        value="\n".join(operation_lines) or "*No finalized operations yet*",
+        inline=False,
+    )
+    embed.set_footer(text="Statistics come from staff-finalized attendance records")
+    return embed
+
+
 # --- validation ----------------------------------------------------------------
 
 

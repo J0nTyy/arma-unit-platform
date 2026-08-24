@@ -40,7 +40,8 @@ _HELP_MEMBER = (
     ),
     (
         "👤 You",
-        "`/profile` — your upcoming operations and attendance record",
+        "`/profile` — your unit profile, preferences and participation\n"
+        "`/stats` — unit-wide participation statistics",
     ),
 )
 _HELP_MAKER = (
@@ -112,37 +113,6 @@ class GeneralCog(commands.Cog):
             embed.add_field(name=_HELP_ADMIN[0], value=_HELP_ADMIN[1], inline=False)
         embed.set_footer(text="Need more help? Ask unit staff.")
         await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @app_commands.command(description="Your upcoming operations and attendance record")
-    @require(PermissionLevel.MEMBER)
-    async def profile(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        assert interaction.guild is not None
-        summary = await self.bot.operation_service.user_profile(
-            interaction.guild.id, interaction.user.id
-        )
-        embed = discord.Embed(
-            title=f"👤 {interaction.user.display_name}",
-            colour=embeds.BLURPLE,
-        )
-        if summary.upcoming:
-            status_icon = {"attending": "🟢", "maybe": "🟡", "waitlist": "⏳"}
-            lines = [
-                f"{status_icon.get(attendance.status, '•')} **{operation.name}** — "
-                f"<t:{embeds.unix_ts(operation.scheduled_at)}:F>"
-                for attendance, operation in summary.upcoming[:10]
-            ]
-            embed.add_field(name="Upcoming operations", value="\n".join(lines), inline=False)
-        else:
-            embed.add_field(
-                name="Upcoming operations",
-                value="None yet — check `/operations` and hit 🟢 **Attend**!",
-                inline=False,
-            )
-        embed.add_field(name="Operations attended", value=str(summary.attended_count))
-        embed.add_field(name="Operations responded to", value=str(summary.responded_count))
-        await interaction.followup.send(embed=embed, ephemeral=True)
-
 
 async def setup(bot: "UnitBot") -> None:
     await bot.add_cog(GeneralCog(bot))

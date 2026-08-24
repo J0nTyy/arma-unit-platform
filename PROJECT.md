@@ -3,9 +3,10 @@
 Living architecture document. The [README](README.md) covers quickstart/setup;
 this file explains how the system is built and why.
 
-**Version 0.5.0 — Phase 4: AI unit assistant** (`/ask`, provider-switchable
-OpenAI/Gemini, tool-based grounding, permission-aware knowledge base — see
-§13 below). Previous: Phase 3 operation-flow overhaul:
+**Version 0.6.0 — Phase 5: player profiles, identity & finalized
+attendance** (see §15). Phase 4: AI unit assistant (`/ask`,
+provider-switchable OpenAI/Gemini, tool-based grounding, permission-aware
+knowledge base — §13). Phase 3 operation-flow overhaul:
 two-field date/time modal (Discord offers bots no calendar/clock widgets), operation names taken from the
 mission file, briefings as formatted plain messages with images beneath,
 dedicated **#attendance** / **#operation-brief** channels, staff-only
@@ -313,7 +314,68 @@ Keyword retrieval (no semantic search yet); memory is per-user, not
 per-thread; mention questions require the ask channel to be configured;
 answers cap at ~3 Discord messages.
 
-## 14. Phase 1–2 reference (unchanged)
+## 15. Players, identity & finalized attendance (Phase 5)
+
+### Identity model
+
+A **Player** is the persistent unit profile behind a **Discord member** —
+one profile per Discord user per guild (multi-guild safe), with optional
+**Steam identity** (SteamID64, format-validated, set by the member in the
+setup flow — never auto-trusted). Profiles are created lazily on first
+interaction and automatically on server join (requires the **Server Members
+Intent** — the bot logs precise instructions if it's missing). When someone
+leaves Discord, nothing is deleted: `left_at` is stamped and all operational
+history stays intact; rejoin clears it.
+
+### Attendance lifecycle
+
+```
+Signup (buttons)  →  Staff finalization (/operation attendance)  →
+Attendance record (audited)  →  Statistics (/profile, /stats)
+```
+
+Signup rows are never overwritten — the authoritative verdict
+(attended / absent / excused) lives in `attendance_records`, and every
+finalization or correction writes an `attendance_audits` row (previous
+status, new status, who, when). Statistics are always derived from records,
+never counters. Rate = attended / (attended + absent); excused doesn't
+count against anyone. Only active/completed operations can be finalized;
+walk-ons (attended without signing up) are supported via a user picker.
+
+### Visibility policy (the "minimal" model)
+
+- **Own profile:** everything — preferences, Steam link, participation
+  stats, recent history.
+- **Other members:** name, status, member-since, roles, experience, bio,
+  qualifications. **No participation data.**
+- **Staff:** everything, plus onboarding state and departed markers.
+The application enforces this in commands *and* AI tools; the model never
+decides visibility.
+
+### Commands
+
+`/profile [member]` (own = full + setup button; others = minimal),
+`/stats` (unit aggregates), `/members [search]` (staff panel: status,
+onboarding, grant/revoke qualifications), `/operation attendance` (staff
+finalization panel with per-member verdicts, bulk mark, walk-ons).
+
+### Qualifications (foundation)
+
+Staff-granted from a fixed catalog (medic, marksman, JTAC, pilot, EOD,
+engineer, leadership), unique per player, shown on profiles. Training/
+progression and Discord-role mirroring come in later phases.
+
+### AI additions
+
+`get_my_profile` (full own data), `get_member_profile` (minimal policy;
+staff callers get participation), `get_unit_statistics` (member),
+`get_attendance_leaders` (staff-only, hidden from member tool lists).
+
+### Member statuses
+
+`active / inactive / leave / retired` — staff-controlled via `/members`.
+
+## 16. Phase 1–2 reference (unchanged)
 
 GitHub client (Contents + Trees API, typed errors), mission schema (single
 pydantic source of truth generating the JSON Schemas), ONE validation

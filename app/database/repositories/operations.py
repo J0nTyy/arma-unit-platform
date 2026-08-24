@@ -66,6 +66,21 @@ class OperationRepository:
         )
         return list(result.scalars())
 
+    async def list_recent_finalizable(self, guild_id: int, limit: int = 15) -> list[Operation]:
+        """Recent operations whose attendance staff may finalize."""
+        result = await self._session.execute(
+            select(Operation)
+            .where(
+                Operation.guild_id == guild_id,
+                Operation.status.in_(
+                    (OperationStatus.ACTIVE.value, OperationStatus.COMPLETED.value)
+                ),
+            )
+            .order_by(Operation.scheduled_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars())
+
     async def list_unarchived_terminal(self) -> list[Operation]:
         """Completed/cancelled operations whose posts still sit in the
         attendance channel and are waiting to be moved to the logs."""

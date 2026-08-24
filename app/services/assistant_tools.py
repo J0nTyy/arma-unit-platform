@@ -284,6 +284,130 @@ async def _get_operation_roster(context: ToolContext, arguments: dict) -> str:
     return "\n".join(lines)
 
 
+def _format_profile_lines(player, qualifications, *, include_private: bool) -> list[str]:
+    from app.database.models.player import QUALIFICATIONS, ROLE_PREFERENCES
+
+    lines = [
+        f"Display name: {player.display_name}",
+        f"Status: {player.active_status}",
+        f"Member since: {player.join_date:%Y-%m-%d}",
+    ]
+    roles = [
+        ROLE_PREFERENCES.get(role, role)
+        for role in (player.primary_role, player.secondary_role)
+        if role
+    ]
+    lines.append("Role preferences: " + (", ".join(roles) if roles else "not set"))
+    if qualifications:
+        lines.append(
+            "Qualifications: "
+            + ", ".join(QUALIFICATIONS.get(q.qualification, q.qualification) for q in qualifications)
+        )
+    else:
+        lines.append("Qualifications: none yet")
+    if player.bio:
+        lines.append(f"Bio: {player.bio}")
+    if include_private and player.timezone:
+        lines.append(f"Timezone: {player.timezone}")
+    return lines
+
+
+async def _get_my_profile(context: ToolContext, _: dict) -> str:
+    """The requester's OWN profile — full detail is allowed by definition."""
+    bot = context.bot
+    player = await bot.player_service.get(context.guild_id, context.user_id)
+    if player is None:
+        return (
+            "The user has no unit profile yet. Tell them to run /profile once to "
+            "create it, and the Set up button to fill in preferences."
+        )
+    qualifications = await bot.player_service.qualifications(player.id)
+    lines = _format_profile_lines(player, qualifications, include_private=True)
+    stats = await bot.attendance_service.player_stats(context.guild_id, context.user_id)
+    lines.append(
+        f"Participation: {stats.signups} signups, {stats.attended} attended, "
+        f"{stats.absent} absent, {stats.excused} excused"
+        + (f", attendance rate {stats.rate:.0f}%" if stats.rate is not None else "")
+    )
+    history = await bot.attendance_service.recent_history(context.guild_id, context.user_id)
+    if history:
+        lines.append(
+            "Recent: " + "; ".join(f"{name} — {status}" for name, _, status in history)
+        )
+    return "\n".join(lines)
+
+
+async def _get_member_profile(context: ToolContext, arguments: dict) -> str:
+    """Another member's profile — the app enforces the unit's visibility
+    policy (minimal): no participation data unless the requester is staff."""
+    bot = context.bot
+    query = str(arguments.get("name", "")).strip()
+    if not query:
+        return "Error: provide the member's name."
+    matches = await bot.player_service.search_members(context.guild_id, query, limit=3)
+    if not matches:
+        return f"No unit member matches '{query}'."
+    player = matches[0]
+    if player.discord_user_id == context.user_id:
+        return await _get_my_profile(context, {})
+    qualifications = await bot.player_service.qualifications(player.id)
+    lines = _format_profile_lines(player, qualifications, include_private=False)
+    if context.level >= PermissionLevel.STAFF:
+        stats = await bot.attendance_service.player_stats(
+            context.guild_id, player.discord_user_id
+        )
+        lines.append(
+            f"[staff] Participation: {stats.attended} attended, {stats.absent} absent, "
+            f"{stats.excused} excused"
+            + (f", rate {stats.rate:.0f}%" if stats.rate is not None else "")
+        )
+        lines.append(f"[staff] Onboarding: {player.onboarding_status}")
+    else:
+        lines.append(
+            "Participation details are private (visible to the member themself and staff). "
+            "If asked, say attendance information isn't shared between members."
+        )
+    if len(matches) > 1:
+        lines.append(
+            "Other possible matches: " + ", ".join(m.display_name for m in matches[1:])
+        )
+    return "\n".join(lines)
+
+
+async def _get_unit_statistics(context: ToolContext, _: dict) -> str:
+    stats = await context.bot.attendance_service.unit_stats(context.guild_id)
+    lines = [
+        f"Active members: {stats.active_members}",
+        f"Operations completed: {stats.operations_completed}",
+        f"Operations this month: {stats.operations_this_month}",
+    ]
+    if stats.average_attended_per_operation is not None:
+        lines.append(
+            f"Average attendance: {stats.average_attended_per_operation:.1f} players per operation"
+        )
+    if stats.overall_attendance_rate is not None:
+        lines.append(f"Unit attendance rate: {stats.overall_attendance_rate:.0f}%")
+    if stats.most_attended:
+        lines.append(f"Most attended operation: {stats.most_attended[0]} ({stats.most_attended[1]})")
+    return "\n".join(lines)
+
+
+async def _get_attendance_leaders(context: ToolContext, _: dict) -> str:
+    from datetime import datetime, timezone
+
+    month_start = datetime.now(timezone.utc).replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+    leaders = await context.bot.attendance_service.attendance_leaders(
+        context.guild_id, month_start
+    )
+    if not leaders:
+        return "No finalized attendance records this month."
+    return "Top attendance this month:\n" + "\n".join(
+        f"{i + 1}. {name} — {count} attended" for i, (name, count) in enumerate(leaders)
+    )
+
+
 def build_default_registry() -> ToolRegistry:
     member = PermissionLevel.MEMBER
     return ToolRegistry(
@@ -336,6 +460,31 @@ def build_default_registry() -> ToolRegistry:
                 "Who has responded to an operation (attendance lists).",
                 _params(operation_id={"type": "integer", "description": "Operation number"}),
                 member, _get_operation_roster,
+            ),
+            ToolSpec(
+                "get_my_profile",
+                "The requesting user's OWN unit profile: roles, join date, "
+                "qualifications, and their personal attendance record. Use for any "
+                "'my profile / my attendance / my roles' question.",
+                _NO_PARAMS, member, _get_my_profile,
+            ),
+            ToolSpec(
+                "get_member_profile",
+                "Another unit member's profile by name. Returns only what the "
+                "requester is allowed to see (participation data is private).",
+                _params(name={"type": "string", "description": "Member display name"}),
+                member, _get_member_profile,
+            ),
+            ToolSpec(
+                "get_unit_statistics",
+                "Unit-wide participation statistics: member count, operations "
+                "completed, average attendance.",
+                _NO_PARAMS, member, _get_unit_statistics,
+            ),
+            ToolSpec(
+                "get_attendance_leaders",
+                "Staff only: highest attendance counts this month.",
+                _NO_PARAMS, PermissionLevel.STAFF, _get_attendance_leaders,
             ),
         ]
     )

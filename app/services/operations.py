@@ -193,6 +193,13 @@ class OperationService:
         except SQLAlchemyError as exc:
             raise DatabaseError("list_upcoming failed") from exc
 
+    async def list_recent_finalizable(self, guild_id: int) -> list[Operation]:
+        try:
+            async with self._database.session() as session:
+                return await OperationRepository(session).list_recent_finalizable(guild_id)
+        except SQLAlchemyError as exc:
+            raise DatabaseError("list_recent_finalizable failed") from exc
+
     async def discard_unpublished(self, operation_id: int) -> None:
         """Delete an operation that was never posted (create-flow cancel)."""
         try:

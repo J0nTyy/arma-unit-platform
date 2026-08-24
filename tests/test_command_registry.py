@@ -42,14 +42,16 @@ async def bot(database, monkeypatch):
 async def test_expected_commands_registered(bot):
     top_level = sorted(c.name for c in bot.tree.get_commands())
     assert top_level == [
-        "about", "ask", "help", "mission", "missions",
-        "operation", "operations", "ping", "profile", "unit",
+        "about", "ask", "help", "members", "mission", "missions",
+        "operation", "operations", "ping", "profile", "stats", "unit",
     ]
 
     mission = bot.tree.get_command("mission")
     assert sorted(c.name for c in mission.commands) == ["publish", "view"]
     operation = bot.tree.get_command("operation")
-    assert sorted(c.name for c in operation.commands) == ["create", "manage", "view"]
+    assert sorted(c.name for c in operation.commands) == [
+        "attendance", "create", "manage", "view",
+    ]
     unit = bot.tree.get_command("unit")
     assert sorted(c.name for c in unit.commands) == ["diagnostics", "setup", "sync"]
 
@@ -80,9 +82,12 @@ async def test_permission_levels_are_tagged_correctly(bot):
     assert levels["ask"] is PermissionLevel.MEMBER
     assert levels["profile"] is PermissionLevel.MEMBER
     assert levels["operations"] is PermissionLevel.MEMBER
+    assert levels["stats"] is PermissionLevel.MEMBER
     assert levels["mission publish"] is PermissionLevel.MISSION_MAKER
     assert levels["operation create"] is PermissionLevel.MISSION_MAKER
     assert levels["operation manage"] is PermissionLevel.STAFF
+    assert levels["operation attendance"] is PermissionLevel.STAFF
+    assert levels["members"] is PermissionLevel.STAFF
     assert levels["unit sync"] is PermissionLevel.STAFF
     assert levels["unit setup"] is PermissionLevel.ADMIN
 

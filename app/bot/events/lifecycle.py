@@ -37,6 +37,30 @@ class LifecycleEvents(commands.Cog):
         log.debug("Disconnected from Discord gateway")
 
     @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member) -> None:
+        if member.bot:
+            return
+        try:
+            await self.bot.player_service.get_or_create(
+                member.guild.id, member.id, member.display_name,
+                joined_at=member.joined_at,
+            )
+            log.info("Created/refreshed profile for joining member %s", member.id)
+        except Exception:  # noqa: BLE001 — event handlers must not raise
+            log.exception("Could not create profile for joining member %s", member.id)
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member) -> None:
+        if member.bot:
+            return
+        try:
+            # History is preserved — the profile is only stamped as departed.
+            await self.bot.player_service.mark_left(member.guild.id, member.id)
+            log.info("Marked member %s as departed (records preserved)", member.id)
+        except Exception:  # noqa: BLE001
+            log.exception("Could not mark member %s as departed", member.id)
+
+    @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild) -> None:
         log.info("Joined guild %s (id=%s)", guild.name, guild.id)
         try:

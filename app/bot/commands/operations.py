@@ -15,6 +15,7 @@ from discord.ext import commands
 
 from app.bot import embeds
 from app.bot.permissions import PermissionLevel, require
+from app.bot.views.attendance_finalize import OperationPickForAttendanceView
 from app.bot.views.components import operation_post_view, respond_error
 from app.bot.views.manage import OperationPickView
 from app.bot.views.operation_create import start_schedule_flow
@@ -160,6 +161,27 @@ class OperationsCog(commands.Cog):
             for entry in entries
             if entry.status != "archived"
         ][:25]
+
+    @operation.command(
+        name="attendance", description="Staff: finalize who actually attended an operation"
+    )
+    @require(PermissionLevel.STAFF)
+    async def operation_attendance(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        assert interaction.guild is not None
+        operations = await self.bot.operation_service.list_recent_finalizable(
+            interaction.guild.id
+        )
+        if not operations:
+            await interaction.followup.send(
+                "📭 No active or completed operations to finalize yet.", ephemeral=True
+            )
+            return
+        await interaction.followup.send(
+            "📋 **Attendance finalization** — pick the operation:",
+            view=OperationPickForAttendanceView(self.bot, operations),
+            ephemeral=True,
+        )
 
     @operation.command(name="manage", description="Staff: lock, reschedule, complete or cancel")
     @require(PermissionLevel.STAFF)

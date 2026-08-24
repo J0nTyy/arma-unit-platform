@@ -52,8 +52,11 @@ curated overview (staff sections appear only for staff).
 | `/mission view <mission>` | Mission card + Brief/Objectives buttons | members |
 | `/operations` | Upcoming operations, drill in & attend | members |
 | `/operation view <operation>` | One operation with attendance buttons | members |
-| `/profile` | Your upcoming ops and attendance record | members |
+| `/profile [member]` | Unit profile: preferences, participation, qualifications | members |
+| `/stats` | Unit participation statistics | members |
 | `/ask <question>` | Ask the unit assistant anything | members |
+| `/members [search]` | Manage member status & qualifications | staff |
+| `/operation attendance` | Finalize who actually attended | staff |
 | `/mission publish <mission>` | Publish a mission post (guided) | mission makers |
 | `/operation create [mission]` | Schedule an operation (guided) | mission makers |
 | `/operation manage` | Lock / reschedule / complete / cancel | staff |
@@ -160,7 +163,8 @@ to the async drivers the app uses. **Never commit `.env`.**
 1. Go to https://discord.com/developers/applications and click **New Application**.
 2. On **General Information**, copy the **Application ID** → `DISCORD_APPLICATION_ID`.
 3. Go to **Bot** → click **Reset Token**, copy the token → `DISCORD_TOKEN`.
-   No privileged intents are needed in Phase 1.
+   On the same page, enable the **Server Members Intent** (required for
+   member profile join/leave tracking).
 4. Invite the bot to your server (replace `YOUR_APP_ID`):
 
    ```

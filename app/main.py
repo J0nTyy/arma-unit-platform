@@ -60,9 +60,21 @@ async def _run(settings: Settings) -> bool:
         # If either task exits (crash or clean stop), shut the whole app down.
         done, _pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for task in done:
-            if task.exception() is not None:
+            exception = task.exception()
+            if exception is not None:
                 failed = True
-                log.error("Task %r exited with an error", task.get_name(), exc_info=task.exception())
+                import discord
+
+                if isinstance(exception, discord.PrivilegedIntentsRequired):
+                    log.error(
+                        "Discord refused the connection: the SERVER MEMBERS INTENT "
+                        "is not enabled. Fix: https://discord.com/developers/applications "
+                        "-> your app -> Bot -> enable 'Server Members Intent' -> restart."
+                    )
+                else:
+                    log.error(
+                        "Task %r exited with an error", task.get_name(), exc_info=exception
+                    )
             else:
                 log.info("Task %r exited", task.get_name())
         return failed

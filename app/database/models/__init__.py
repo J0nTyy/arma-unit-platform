@@ -4,6 +4,17 @@ from app.database.models.base import Base
 from app.database.models.guild import CHANNEL_KINDS, GuildConfiguration
 from app.database.models.knowledge import KnowledgeDocument
 from app.database.models.mission import MissionIndexEntry
+from app.database.models.player import (
+    EXPERIENCE_LEVELS,
+    QUALIFICATIONS,
+    ROLE_PREFERENCES,
+    AttendanceAudit,
+    AttendanceRecord,
+    FinalAttendance,
+    MemberStatus,
+    Player,
+    PlayerQualification,
+)
 from app.database.models.operation import (
     ALLOWED_TRANSITIONS,
     AttendanceStatus,
@@ -15,8 +26,17 @@ from app.database.models.operation import (
 
 __all__ = [
     "ALLOWED_TRANSITIONS",
+    "AttendanceAudit",
+    "AttendanceRecord",
     "AttendanceStatus",
     "Base",
+    "EXPERIENCE_LEVELS",
+    "FinalAttendance",
+    "MemberStatus",
+    "Player",
+    "PlayerQualification",
+    "QUALIFICATIONS",
+    "ROLE_PREFERENCES",
     "CHANNEL_KINDS",
     "GuildConfiguration",
     "KnowledgeDocument",
