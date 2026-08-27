@@ -23,6 +23,12 @@ CHANNEL_KINDS = (
     ("staff_channel_id", "Staff"),
 )
 
+# Channels ordinary members can't see. Never surfaced to non-staff — a
+# mention would render as an "unknown channel" and leak that it exists.
+PRIVATE_CHANNEL_KEYS = frozenset(
+    {"staff_channel_id", "operation_logs_channel_id", "logs_channel_id"}
+)
+
 
 class GuildConfiguration(Base):
     """Per-Discord-server configuration.

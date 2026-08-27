@@ -5,4 +5,4 @@ independent layers (bot -> services -> repositories -> database) so future
 interfaces (HTTP API, web dashboard) can reuse the same business logic.
 """
 
-__version__ = "0.13.4"
+__version__ = "0.13.5"

@@ -209,6 +209,29 @@ def tool_call_response(name, **arguments):
     )
 
 
+async def test_private_channels_hidden_from_members_staff_ping_advised(bot):
+    await bot.guild_service.update_settings(
+        1, "Guild", staff_channel_id=555, general_channel_id=666, staff_role_id=777
+    )
+    client = FakeAIChatClient([AIResponse(content="ok"), AIResponse(content="ok")])
+    service = make_service(client)
+
+    # Member in a public channel: staff channel invisible, ping-staff advised.
+    await service.ask(context_for(bot), "how do I report someone?", channel_id=1)
+    system = client.calls[0][0]["content"]
+    assert "<#555>" not in system              # private channel never leaks
+    assert "<#666>" in system                  # public channels still listed
+    assert "<@&777>" in system                 # staff role as the contact path
+    assert "NEVER mention, name or link staff-only channels" in system
+
+    # Staff conversation inside a staff channel: the directory may include it.
+    await service.ask(
+        context_for(bot, PermissionLevel.STAFF), "status?",
+        staff_channel=True, channel_id=2,
+    )
+    assert "<#555>" in client.calls[1][0]["content"]
+
+
 async def test_prompt_names_the_current_channel(bot):
     client = FakeAIChatClient([AIResponse(content="ok")])
     service = make_service(client)

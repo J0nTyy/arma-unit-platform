@@ -199,19 +199,36 @@ class AssistantService:
         ]
 
         # Channel directory — so answers can link channels properly (<#id>).
+        # Private (staff-only) channels are listed ONLY inside staff channels:
+        # to a member, a private-channel mention renders as "unknown channel"
+        # and leaks that it exists.
         if configuration is not None:
-            from app.database.models.guild import CHANNEL_KINDS
+            from app.database.models.guild import CHANNEL_KINDS, PRIVATE_CHANNEL_KEYS
 
             channel_lines = [
                 f"- <#{getattr(configuration, key)}> — {label}"
                 for key, label in CHANNEL_KINDS
                 if getattr(configuration, key)
+                and (staff_channel or key not in PRIVATE_CHANNEL_KEYS)
             ]
             if channel_lines:
                 blocks.append(
                     "## Server channels\nWhen pointing someone at a channel, use these "
                     "exact channel mentions:\n" + "\n".join(channel_lines)
                 )
+            staff_contact = (
+                f"ping the <@&{configuration.staff_role_id}> role or message "
+                "someone holding it"
+                if configuration.staff_role_id
+                else "ping or message a staff member directly"
+            )
+            blocks.append(
+                "## Reaching staff\nWhen something needs staff (decisions, "
+                f"disputes, permissions, reports), tell the member to {staff_contact}. "
+                "NEVER mention, name or link staff-only channels when talking to "
+                "members — they can't see those channels and shouldn't learn "
+                "they exist from you."
+            )
 
         # Where are we talking? Staff channels may carry staff-level detail.
         here = f"You are talking in the channel <#{channel_id}> RIGHT NOW. " if channel_id else ""

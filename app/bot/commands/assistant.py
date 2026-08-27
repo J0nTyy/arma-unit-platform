@@ -35,6 +35,10 @@ _MESSAGE_LIMIT = 1990
 _HISTORY_MESSAGES = 15      # recent channel messages given as context
 _HISTORY_CHAR_BUDGET = 1600  # keep the token bill sane
 
+# Answers may REFERENCE the staff role (<@&id>) so members know who to
+# contact — render it without actually pinging the whole staff team.
+_ANSWER_MENTIONS = discord.AllowedMentions(users=True, roles=False, everyone=False)
+
 
 def _chunk(text: str) -> list[str]:
     chunks: list[str] = []
@@ -123,9 +127,9 @@ class AssistantCog(commands.Cog):
             channel_id=interaction.channel_id,
         )
         chunks = _chunk(f"> {question[:180]}\n\n{answer}")
-        await interaction.followup.send(chunks[0])
+        await interaction.followup.send(chunks[0], allowed_mentions=_ANSWER_MENTIONS)
         for chunk in chunks[1:3]:
-            await interaction.followup.send(chunk)
+            await interaction.followup.send(chunk, allowed_mentions=_ANSWER_MENTIONS)
 
     @commands.Cog.listener("on_message")
     async def on_message(self, message: discord.Message) -> None:
@@ -214,10 +218,12 @@ class AssistantCog(commands.Cog):
         first = True
         for chunk in _chunk(answer)[:3]:
             if first:
-                await message.reply(chunk, mention_author=False)
+                await message.reply(
+                    chunk, mention_author=False, allowed_mentions=_ANSWER_MENTIONS
+                )
                 first = False
             else:
-                await message.channel.send(chunk)
+                await message.channel.send(chunk, allowed_mentions=_ANSWER_MENTIONS)
 
 
 async def setup(bot: "UnitBot") -> None:
