@@ -214,7 +214,12 @@ class AssistantService:
             if channel_lines:
                 blocks.append(
                     "## Server channels\nWhen pointing someone at a channel, use these "
-                    "exact channel mentions:\n" + "\n".join(channel_lines)
+                    "exact channel mentions:\n" + "\n".join(channel_lines) + "\n"
+                    "Reference a channel ONLY when it directly answers what was "
+                    "asked, and its purpose must match its label above exactly — "
+                    "re-read the label before naming a channel. Never volunteer an "
+                    "unrequested tour of the channels or a 'for other things…' "
+                    "addendum. Answer the question, then stop."
                 )
             staff_contact = (
                 f"ping the <@&{configuration.staff_role_id}> role or message "

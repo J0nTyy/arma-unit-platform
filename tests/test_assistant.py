@@ -223,6 +223,7 @@ async def test_private_channels_hidden_from_members_staff_ping_advised(bot):
     assert "<#666>" in system                  # public channels still listed
     assert "<@&777>" in system                 # staff role as the contact path
     assert "NEVER mention, name or link staff-only channels" in system
+    assert "unrequested tour" in system        # no channel-tour padding
 
     # Staff conversation inside a staff channel: the directory may include it.
     await service.ask(
