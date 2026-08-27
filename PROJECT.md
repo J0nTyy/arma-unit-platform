@@ -461,6 +461,29 @@ attendance, memory); server folders hold configuration and generated
 human-readable snapshots/exports. Both `unit/` and `data/` are
 volume-mounted in docker-compose so they survive image rebuilds.
 
+### Export architecture (Pre-Phase 6A part 2)
+
+Two layers: `ExportService` (`app/services/exports.py`) writes tables to
+files and knows nothing about their contents — dated exports are never
+overwritten (collision → `_2`), snapshots regenerate in place, CSV is
+UTF-8-with-BOM for Excel, XLSX via openpyxl. `DataExportService`
+(`app/services/data_export.py`) builds the guild-scoped datasets (members,
+operations, attendance, certifications, missions) and the `memories.md`
+snapshot. Attendance is exported **one row per finalized record**
+(Player/Operation/Date/Signup/Final status/Role/Notes) — never one row per
+player with horizontal operation columns. Surfaces: `/unit export` (staff,
+dated CSV+XLSX, CSVs attached in Discord) and a daily scheduler pass that
+refreshes `exports/latest/*.csv` + `memory/memories.md`. Future
+`/export members|attendance|operations` commands (stage 5) reuse these
+services unchanged.
+
+Server memory entries now carry `visibility` (`unit`/`staff`) and optional
+`expires_at` (migration 0009): expired facts are never recalled and are
+pruned on the next write; staff-visibility memories are only recalled for
+staff — enforced in `MemoryService`, never left to the AI prompt. The
+assistant's `save_memory` tool takes an optional `days_valid` for
+temporary facts.
+
 ## 18. Phase 1–2 reference (unchanged)
 
 GitHub client (Contents + Trees API, typed errors), mission schema (single

@@ -5,6 +5,8 @@ from app.services.attendance import (
     RosterEntry,
     UnitStats,
 )
+from app.services.data_export import DataExportService
+from app.services.exports import ExportService
 from app.services.guilds import GuildService
 from app.services.players import PlayerService
 from app.services.knowledge import KnowledgeService, KnowledgeSyncResult
@@ -30,6 +32,8 @@ __all__ = [
     "AssistantService",
     "AttendanceOutcome",
     "AttendanceService",
+    "DataExportService",
+    "ExportService",
     "GuildService",
     "PlayerService",
     "PlayerStats",

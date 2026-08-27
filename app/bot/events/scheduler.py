@@ -36,6 +36,7 @@ class SchedulerEvents(commands.Cog):
     def __init__(self, bot: "UnitBot") -> None:
         self.bot = bot
         self._next_chatter: dict[int, float] = {}  # guild_id -> monotonic deadline
+        self._next_snapshot: dict[int, float] = {}  # guild_id -> monotonic deadline
 
     async def cog_load(self) -> None:
         self.tick.start()
@@ -62,6 +63,10 @@ class SchedulerEvents(commands.Cog):
             await self._chatter_pass()
         except Exception:  # noqa: BLE001 — chatter must never break the scheduler
             log.exception("Chatter pass failed")
+        try:
+            await self._snapshot_pass()
+        except Exception:  # noqa: BLE001
+            log.exception("Snapshot pass failed")
 
     async def _chatter_pass(self) -> None:
         """Occasional in-character message in the general channel (opt-in)."""
@@ -118,6 +123,29 @@ class SchedulerEvents(commands.Cog):
         self._next_chatter[guild_id] = time.monotonic() + random.randint(
             _CHATTER_MIN_SECONDS, _CHATTER_MAX_SECONDS
         )
+
+    async def _snapshot_pass(self) -> None:
+        """Daily 'latest state' files per guild (first run ~10min after boot):
+        exports/latest/*.csv + memory/memories.md — regenerated, DB canonical."""
+        for guild in self.bot.guilds:
+            deadline = self._next_snapshot.get(guild.id)
+            if deadline is None:
+                self._next_snapshot[guild.id] = time.monotonic() + 600
+                continue
+            if time.monotonic() < deadline:
+                continue
+            self._next_snapshot[guild.id] = time.monotonic() + 24 * 3600
+            try:
+                context = self.bot.server_data.ensure(guild.id, guild.name)
+                counts = await self.bot.data_export.write_snapshots(
+                    guild.id, context.exports_dir
+                )
+                await self.bot.data_export.write_memory_snapshot(
+                    guild.id, context.memory_dir
+                )
+                log.info("Daily snapshots for guild %s: %s", guild.id, counts)
+            except Exception:  # noqa: BLE001 — retry tomorrow
+                log.exception("Daily snapshots failed for guild %s", guild.id)
 
     @tick.before_loop
     async def before_tick(self) -> None:

@@ -174,10 +174,13 @@ class AssistantService:
                 "suggest the staff channel instead."
             )
 
-        # Server memory — things the unit told you before.
+        # Server memory — things the unit told you before. Staff-visibility
+        # memories are only recalled for staff (enforced in the service).
         memory_service = getattr(context.bot, "memory_service", None)
         if memory_service is not None:
-            memories = await memory_service.recall(context.guild_id, question)
+            memories = await memory_service.recall(
+                context.guild_id, question, include_staff=is_staff
+            )
             if memories:
                 blocks.append(
                     "## Server memory (facts you noted earlier — trust but attribute "

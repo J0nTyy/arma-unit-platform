@@ -10,10 +10,19 @@ data/
     └── <server-name>_<guild-id>/     e.g. 42nd-Ridgeway_1541469876...
         ├── server.yaml               data format version — don't edit
         ├── config/                   server-specific configuration
-        ├── memory/                   assistant memory snapshots (generated)
-        ├── exports/                  CSV/XLSX exports from staff commands (generated)
+        ├── memory/
+        │   └── memories.md           assistant memory, readable (regenerated)
+        ├── exports/
+        │   ├── members_<date>.csv    /unit export output — dated, never
+        │   ├── members_<date>.xlsx     overwritten (repeat exports get _2…)
+        │   └── latest/*.csv          daily "current state" snapshots
+        │                               (regenerated in place)
         └── logs/                     server-scoped logs (generated)
 ```
+
+Datasets exported: `members`, `operations`, `attendance` (one row per
+attendance record — filter/sort friendly), `certifications`, `missions`.
+CSVs open directly in Excel/LibreOffice/Google Sheets (UTF-8 with BOM).
 
 Rules of the road:
 

@@ -23,6 +23,15 @@ class BotMemory(Base):
     guild_id: Mapped[int] = mapped_column(BigInteger, index=True)
     content: Mapped[str] = mapped_column(String(300))
     author_id: Mapped[int] = mapped_column(BigInteger)  # whose words prompted it
+    # "unit" = recalled for everyone; "staff" = only for staff questions.
+    visibility: Mapped[str] = mapped_column(
+        String(10), default="unit", server_default="unit"
+    )
+    # Optional expiry for temporary facts ("server down this weekend");
+    # expired memories are never recalled and are pruned opportunistically.
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

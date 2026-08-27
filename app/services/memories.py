@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import Database
@@ -42,13 +43,37 @@ class MemoryService:
     def __init__(self, database: Database) -> None:
         self._database = database
 
-    async def remember(self, guild_id: int, content: str, author_id: int) -> BotMemory:
+    async def remember(
+        self,
+        guild_id: int,
+        content: str,
+        author_id: int,
+        *,
+        visibility: str = "unit",
+        days_valid: int | None = None,
+    ) -> BotMemory:
         content = " ".join(content.split())[:300]
+        expires_at = (
+            datetime.now(timezone.utc) + timedelta(days=days_valid)
+            if days_valid and days_valid > 0
+            else None
+        )
         try:
             async with self._database.session() as session, session.begin():
-                memory = BotMemory(guild_id=guild_id, content=content, author_id=author_id)
+                memory = BotMemory(
+                    guild_id=guild_id, content=content, author_id=author_id,
+                    visibility=visibility, expires_at=expires_at,
+                )
                 session.add(memory)
                 await session.flush()
+                # Expired entries are pruned whenever something new is learned.
+                await session.execute(
+                    delete(BotMemory).where(
+                        BotMemory.guild_id == guild_id,
+                        BotMemory.expires_at.is_not(None),
+                        BotMemory.expires_at < datetime.now(timezone.utc),
+                    )
+                )
                 # Cap per guild: oldest memories fade first, like a real NCO.
                 count = await session.execute(
                     select(func.count()).select_from(BotMemory).where(
@@ -72,16 +97,28 @@ class MemoryService:
         except SQLAlchemyError as exc:
             raise DatabaseError("remember failed") from exc
 
-    async def recall(self, guild_id: int, query: str, limit: int = 5) -> list[BotMemory]:
-        """Keyword-overlap retrieval — same philosophy as knowledge search."""
+    async def recall(
+        self, guild_id: int, query: str, limit: int = 5, *, include_staff: bool = False
+    ) -> list[BotMemory]:
+        """Keyword-overlap retrieval — same philosophy as knowledge search.
+
+        Expired memories are never recalled; staff-visibility memories are
+        only recalled when the requester is staff (enforced here, in
+        application code — never left to the AI prompt).
+        """
         terms = _tokens(query)
         if not terms:
             return []
+        now = datetime.now(timezone.utc)
+        conditions = [
+            BotMemory.guild_id == guild_id,
+            or_(BotMemory.expires_at.is_(None), BotMemory.expires_at >= now),
+        ]
+        if not include_staff:
+            conditions.append(BotMemory.visibility == "unit")
         try:
             async with self._database.session() as session:
-                result = await session.execute(
-                    select(BotMemory).where(BotMemory.guild_id == guild_id)
-                )
+                result = await session.execute(select(BotMemory).where(*conditions))
                 memories = list(result.scalars())
         except SQLAlchemyError as exc:
             raise DatabaseError("recall failed") from exc

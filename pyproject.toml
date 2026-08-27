@@ -23,6 +23,8 @@ dependencies = [
     "anthropic>=1.1",
     # Unit/server configuration files (unit.yaml, server.yaml markers)
     "pyyaml>=6.0",
+    # XLSX export (/unit export writes CSV + Excel workbooks)
+    "openpyxl>=3.1",
     # Database
     "sqlalchemy[asyncio]>=2.0.36",
     "asyncpg>=0.30",         # PostgreSQL (production)

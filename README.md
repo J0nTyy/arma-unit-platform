@@ -61,7 +61,8 @@ curated overview (staff sections appear only for staff).
 | `/operation create [mission]` | Schedule an operation (guided) | mission makers |
 | `/operation manage` | Lock / reschedule / complete / cancel | staff |
 | `/unit setup` | Channels, roles, timezone, reminders | administrators |
-| `/unit sync` | Refresh missions from GitHub | staff |
+| `/unit sync` | Re-index unit knowledge/lore + refresh missions | staff |
+| `/unit export` | Unit data → dated CSV/Excel files | staff |
 | `/unit diagnostics` | Bot / database / repository health | staff |
 
 ## 2. Architecture

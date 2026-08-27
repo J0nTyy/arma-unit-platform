@@ -51,6 +51,46 @@ async def test_forget_memory(database):
     assert await service.forget(2, memory.id) is False  # never cross-guild
 
 
+async def test_expired_memories_are_never_recalled_and_get_pruned(database):
+    service = MemoryService(database)
+    memory = await service.remember(
+        1, "Server maintenance downtime this weekend", author_id=7, days_valid=2
+    )
+    # Valid today: recalled normally.
+    assert await service.recall(1, "maintenance downtime weekend")
+
+    # Force it into the past — simulates the fact aging out.
+    from sqlalchemy import update
+    from app.database.models.memory import BotMemory
+
+    async with database.session() as session, session.begin():
+        await session.execute(
+            update(BotMemory)
+            .where(BotMemory.id == memory.id)
+            .values(expires_at=datetime.now(timezone.utc) - timedelta(days=1))
+        )
+    assert await service.recall(1, "maintenance downtime weekend") == []
+
+    # The next remember() prunes expired rows entirely.
+    await service.remember(1, "A brand new permanent unit fact", author_id=7)
+    assert await service.count(1) == 1
+
+
+async def test_staff_memories_hidden_from_member_recall(database):
+    service = MemoryService(database)
+    await service.remember(
+        1, "Disciplinary review pending for a member", author_id=7, visibility="staff"
+    )
+    await service.remember(1, "Op nights are Fridays for everyone", author_id=7)
+
+    member_hits = await service.recall(1, "disciplinary review pending")
+    assert member_hits == []  # enforced in the application, not the prompt
+    staff_hits = await service.recall(
+        1, "disciplinary review pending", include_staff=True
+    )
+    assert len(staff_hits) == 1
+
+
 async def test_memory_cap_drops_oldest(database, monkeypatch):
     import app.services.memories as memories_module
 

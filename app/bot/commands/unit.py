@@ -168,6 +168,41 @@ class UnitCog(commands.Cog):
             embed=embed, view=ForgetMemoryView(self.bot, memories), ephemeral=True
         )
 
+    @unit.command(
+        name="export",
+        description="Export unit data (members, operations, attendance…) to CSV/Excel",
+    )
+    @require(PermissionLevel.STAFF)
+    async def unit_export(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        assert interaction.guild is not None
+        context = self.bot.server_data.ensure(interaction.guild.id, interaction.guild.name)
+        results = await self.bot.data_export.export_dated(
+            interaction.guild.id, context.exports_dir
+        )
+        await self.bot.data_export.write_memory_snapshot(
+            interaction.guild.id, context.memory_dir
+        )
+
+        embed = discord.Embed(
+            title="📦 Unit data exported",
+            colour=embeds.GREEN,
+            description=(
+                f"Written to `{context.exports_dir}` as dated CSV + Excel files "
+                "(existing exports are never overwritten)."
+            ),
+        )
+        for name, (paths, count) in results.items():
+            embed.add_field(name=name.capitalize(), value=f"{count} rows")
+        # Attach the CSVs so staff can open them without touching the host.
+        files = [
+            discord.File(str(path), filename=path.name)
+            for name, (paths, _) in results.items()
+            for path in paths
+            if path.suffix == ".csv" and path.stat().st_size < 7_500_000
+        ][:10]
+        await interaction.followup.send(embed=embed, files=files, ephemeral=True)
+
     @unit.command(name="diagnostics", description="Bot, database and repository health")
     @require(PermissionLevel.STAFF)
     async def unit_diagnostics(self, interaction: discord.Interaction) -> None:

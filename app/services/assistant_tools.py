@@ -415,7 +415,15 @@ async def _save_memory(context: ToolContext, arguments: dict) -> str:
     fact = str(arguments.get("fact", "")).strip()
     if len(fact) < 10:
         return "Error: a memory needs to be a meaningful fact (10+ characters)."
-    await memory_service.remember(context.guild_id, fact, context.user_id)
+    days_valid: int | None = None
+    raw_days = arguments.get("days_valid")
+    if isinstance(raw_days, (int, float)) and raw_days > 0:
+        days_valid = min(int(raw_days), 365)
+    await memory_service.remember(
+        context.guild_id, fact, context.user_id, days_valid=days_valid
+    )
+    if days_valid:
+        return f"Noted — saved to server memory (expires in {days_valid} day(s))."
     return "Noted — saved to server memory."
 
 
@@ -521,8 +529,22 @@ def build_default_registry() -> ToolRegistry:
                 "Save a short durable fact to server memory — use when someone "
                 "shares something worth remembering long-term (decisions, "
                 "preferences, recurring schedules, unit in-jokes). Not for "
-                "trivia or things already in the docs.",
-                _params(fact={"type": "string", "description": "The fact, one sentence"}),
+                "trivia or things already in the docs. For temporary facts "
+                "(one-off schedule changes, outages) set days_valid so the "
+                "memory expires on its own.",
+                {
+                    "type": "object",
+                    "properties": {
+                        "fact": {"type": "string", "description": "The fact, one sentence"},
+                        "days_valid": {
+                            "type": "integer",
+                            "description": "Only for temporary facts: days until this "
+                            "expires (omit for permanent memories)",
+                        },
+                    },
+                    "required": ["fact"],
+                    "additionalProperties": False,
+                },
                 member, _save_memory,
             ),
             ToolSpec(

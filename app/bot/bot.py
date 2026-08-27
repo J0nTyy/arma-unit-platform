@@ -21,6 +21,7 @@ from app.integrations.github import GitHubClient
 from app.services import (
     AssistantService,
     AttendanceService,
+    DataExportService,
     GuildService,
     KnowledgeService,
     MemoryService,
@@ -91,6 +92,8 @@ class UnitBot(commands.Bot):
         self.server_data = ServerDataService()
         # Knowledge is indexed from unit/knowledge + unit/lore (no GitHub).
         self.knowledge_service = KnowledgeService(database, self.unit_config.root)
+        # Human-readable exports/snapshots into each server's data directory.
+        self.data_export = DataExportService(database)
 
         # Mission repository integration is optional; /mission commands explain
         # the required setup when it is not configured.
