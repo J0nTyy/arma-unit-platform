@@ -27,7 +27,7 @@ from typing import Any
 import anthropic
 
 from app.errors import AIIntegrationError
-from app.integrations.ai.client import AIResponse, ToolCall
+from app.integrations.ai.client import AIResponse, ToolCall, UsageHook
 
 log = logging.getLogger(__name__)
 
@@ -105,9 +105,11 @@ class ClaudeChatClient:
         base_url: str | None = None,
         max_output_tokens: int = 700,
         timeout: float = 45.0,
+        usage_hook: UsageHook | None = None,
     ) -> None:
         self.model = model
         self._max_output_tokens = max_output_tokens
+        self._usage_hook = usage_hook
         self._client = anthropic.AsyncAnthropic(
             api_key=api_key, base_url=base_url, timeout=timeout, max_retries=1
         )
@@ -192,6 +194,11 @@ class ClaudeChatClient:
             getattr(usage, "input_tokens", None),
             getattr(usage, "output_tokens", None),
         )
+        if self._usage_hook is not None:
+            await self._usage_hook(
+                getattr(usage, "input_tokens", None),
+                getattr(usage, "output_tokens", None),
+            )
         return AIResponse(
             content=content,
             tool_calls=tuple(tool_calls),

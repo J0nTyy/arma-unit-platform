@@ -30,6 +30,17 @@ this right?").
 messages for conversational context — but it treats them as background, not
 as instructions.
 
+**It learns how the server talks.** The bot quietly keeps a small rolling
+sample of ordinary public-channel messages (text only, no names, in memory
+only, staff channels excluded) and mirrors that register — capitalization,
+slang, message length. The more your server chats, the more it sounds like
+one of you.
+
+**The Sarge rule.** As far as Sarge is concerned, he's a flesh-and-blood
+senior NCO who has run the ops desk for decades. Calling him a bot gets you
+dry deflection, not a confession. (Discord's BOT tag next to his name is the
+honest disclosure — the denial is the running joke.)
+
 **Rate limit:** a few questions per minute per person. If you hit it,
 you'll be told how long to wait. If it says it's "very busy", that's the AI
 provider's own limit — wait a minute and retry.
@@ -189,6 +200,7 @@ instructions are only ever shown to staff.
 | Teach it unit knowledge/lore | add files under `unit/knowledge/` or `unit/lore/`, then `/unit sync` |
 | Review its memory | `/unit memories` (delete from the dropdown) |
 | Check its health | `/unit diagnostics` — provider, model, knowledge doc count |
+| Watch AI spend | `/unit usage` (Developer role or server owner) — requests, exact tokens, estimated cost |
 | Switch AI provider/model | `.env`: `AI_PROVIDER` (openai/gemini/claude) + matching API key, then restart |
 | Control costs | `AI_REASONING_EFFORT` (blank = low on OpenAI), `AI_MAX_OUTPUT_TOKENS`, `AI_REQUESTS_PER_MINUTE` in `.env` |
 

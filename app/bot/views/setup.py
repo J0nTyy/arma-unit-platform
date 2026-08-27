@@ -88,6 +88,7 @@ _ROLE_SETTINGS = (
     ("staff_role_id", "Staff role"),
     ("mission_maker_role_id", "Mission Maker role"),
     ("trainer_role_id", "Trainer role"),
+    ("developer_role_id", "Developer role"),
 )
 
 

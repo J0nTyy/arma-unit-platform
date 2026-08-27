@@ -100,6 +100,7 @@ class AssistantCog(commands.Cog):
         return await service.ask(
             context, question,
             chat_context=chat_context, quoted=quoted, staff_channel=staff_channel,
+            style_examples=self.bot.style_sampler.sample(member.guild.id),
         )
 
     @app_commands.command(
@@ -127,6 +128,15 @@ class AssistantCog(commands.Cog):
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot or message.guild is None or self.bot.user is None:
             return
+
+        # Every ordinary public-channel message teaches the assistant how
+        # people here type (text only, no authors, in-memory).
+        self.bot.style_sampler.consider(
+            message.guild.id,
+            message.content,
+            author_is_bot=message.author.bot,
+            staff_channel=_is_staff_channel(message.channel),
+        )
 
         mentioned = self.bot.user in message.mentions
         quoted: str | None = None

@@ -16,13 +16,17 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 import openai
 
 from app.errors import AIIntegrationError
 
 log = logging.getLogger(__name__)
+
+# Called after every successful model turn with (input_tokens, output_tokens)
+# so the application can track spend. Must never raise.
+UsageHook = Callable[[int | None, int | None], Awaitable[None]]
 
 
 @dataclass(frozen=True)
@@ -52,9 +56,11 @@ class AIChatClient:
         max_output_tokens: int = 700,
         timeout: float = 45.0,
         reasoning_effort: str | None = None,
+        usage_hook: UsageHook | None = None,
     ) -> None:
         self.model = model
         self._max_output_tokens = max_output_tokens
+        self._usage_hook = usage_hook
         # Caps hidden "thinking" spend on reasoning models (gpt-5 family).
         # None = don't send the parameter (required for providers/models that
         # would reject it).
@@ -113,6 +119,11 @@ class AIChatClient:
             getattr(usage, "prompt_tokens", None),
             getattr(usage, "completion_tokens", None),
         )
+        if self._usage_hook is not None:
+            await self._usage_hook(
+                getattr(usage, "prompt_tokens", None),
+                getattr(usage, "completion_tokens", None),
+            )
         return AIResponse(
             content=message.content,
             tool_calls=tool_calls,

@@ -1,3 +1,4 @@
+from app.services.ai_usage import AIUsageService
 from app.services.assistant import AssistantService
 from app.services.attendance import (
     AttendanceService,
@@ -27,6 +28,7 @@ from app.services.server_data import (
     sanitize_server_name,
 )
 from app.services.status import StatusReport, StatusService
+from app.services.style_sampler import StyleSampler
 from app.services.unit_config import (
     PersonalitySettings,
     UnitConfigService,
@@ -34,6 +36,7 @@ from app.services.unit_config import (
 )
 
 __all__ = [
+    "AIUsageService",
     "AssistantService",
     "AttendanceOutcome",
     "AttendanceService",
@@ -58,6 +61,7 @@ __all__ = [
     "ServerDataService",
     "StatusReport",
     "StatusService",
+    "StyleSampler",
     "SyncFailure",
     "SyncResult",
     "TickResult",

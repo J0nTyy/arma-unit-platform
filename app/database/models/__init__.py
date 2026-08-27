@@ -1,5 +1,6 @@
 # Import every model here so Base.metadata knows about all tables
 # (Alembic autogenerate and test table creation depend on this).
+from app.database.models.ai_usage import AIUsageDaily
 from app.database.models.base import Base
 from app.database.models.guild import CHANNEL_KINDS, GuildConfiguration
 from app.database.models.knowledge import KnowledgeDocument
@@ -26,6 +27,7 @@ from app.database.models.operation import (
 )
 
 __all__ = [
+    "AIUsageDaily",
     "ALLOWED_TRANSITIONS",
     "AttendanceAudit",
     "AttendanceRecord",

@@ -19,6 +19,7 @@ from app.database import Database
 from app.integrations.ai import AIChatClient, ChatClient, ClaudeChatClient
 from app.integrations.github import GitHubClient
 from app.services import (
+    AIUsageService,
     AssistantService,
     AttendanceService,
     DataExportService,
@@ -32,6 +33,7 @@ from app.services import (
     PublicationService,
     ServerDataService,
     StatusService,
+    StyleSampler,
     UnitConfigService,
 )
 from app.services.assistant import load_personality
@@ -102,6 +104,9 @@ class UnitBot(commands.Bot):
             override_dir=self.unit_config.messages_dir,
             humour=self.personality_settings.humour,
         )
+        # Rolling, in-memory sample of how members actually type (per guild,
+        # public channels only) — fed to the assistant as a style reference.
+        self.style_sampler = StyleSampler()
 
         # Mission repository integration is optional; /mission commands explain
         # the required setup when it is not configured.
@@ -129,7 +134,17 @@ class UnitBot(commands.Bot):
         # AI assistant is optional; /ask explains itself when unconfigured.
         self.ai_client: ChatClient | None = None
         self.assistant_service: AssistantService | None = None
+        # Spend tracking: every AI call records exact token counts so staff
+        # can watch usage from Discord (/unit usage) without dashboard access.
+        self.ai_usage = AIUsageService(database)
         if settings.ai_configured:
+
+            async def _record_usage(input_tokens: int | None, output_tokens: int | None) -> None:
+                await self.ai_usage.record(
+                    settings.ai_provider, settings.resolved_ai_model,
+                    input_tokens, output_tokens,
+                )
+
             # Claude speaks its own protocol (official Anthropic SDK); openai
             # and gemini share the OpenAI-compatible client.
             if settings.ai_provider == "claude":
@@ -138,6 +153,7 @@ class UnitBot(commands.Bot):
                     model=settings.resolved_ai_model,
                     base_url=settings.resolved_ai_base_url,
                     max_output_tokens=settings.ai_max_output_tokens,
+                    usage_hook=_record_usage,
                 )
             else:
                 self.ai_client = AIChatClient(
@@ -146,6 +162,7 @@ class UnitBot(commands.Bot):
                     base_url=settings.resolved_ai_base_url,
                     max_output_tokens=settings.ai_max_output_tokens,
                     reasoning_effort=settings.resolved_ai_reasoning_effort,
+                    usage_hook=_record_usage,
                 )
             self.assistant_service = AssistantService(
                 self.ai_client,

@@ -10,7 +10,12 @@ from discord.ext import commands
 
 from app import __version__
 from app.bot import embeds
-from app.bot.permissions import PermissionLevel, ensure_level, require
+from app.bot.permissions import (
+    PermissionLevel,
+    ensure_developer,
+    ensure_level,
+    require,
+)
 from app.bot.views.components import respond_error
 from app.bot.views.publish import refresh_guild_publications
 from app.bot.views.setup import SetupHubView, build_setup_embed
@@ -200,6 +205,54 @@ class UnitCog(commands.Cog):
         if path.stat().st_size < 7_500_000:
             files.append(discord.File(str(path), filename=path.name))
         await interaction.followup.send(embed=embed, files=files, ephemeral=True)
+
+    @unit.command(
+        name="usage",
+        description="Developers: AI credit usage — requests, tokens, estimated cost",
+    )
+    @require(PermissionLevel.MEMBER)
+    async def unit_usage(self, interaction: discord.Interaction) -> None:
+        # Developer-only: spend data is infrastructure trust, not staff trust.
+        await ensure_developer(interaction)
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        summary = await self.bot.ai_usage.summary(days=30)
+
+        if not summary.days:
+            await interaction.followup.send(
+                "📊 No AI usage recorded yet (tracking started with v0.13). "
+                "Ask the assistant something and check again.",
+                ephemeral=True,
+            )
+            return
+
+        cost = (
+            f"~${summary.estimated_cost_usd:.4f}"
+            if summary.estimated_cost_usd is not None
+            else "n/a (no public price for this model)"
+        )
+        embed = discord.Embed(
+            title="📊 AI usage — last 30 days",
+            colour=embeds.BLURPLE,
+            description=(
+                f"**{summary.total_requests}** requests · "
+                f"**{summary.total_input_tokens:,}** tokens in · "
+                f"**{summary.total_output_tokens:,}** tokens out\n"
+                f"**Estimated cost:** {cost}\n"
+                "-# Estimates use public prices; the provider's invoice is authoritative."
+            ),
+        )
+        from app.services.ai_usage import estimate_cost_usd
+
+        lines = []
+        for row in summary.days[:14]:
+            day_cost = estimate_cost_usd(row.model, row.input_tokens, row.output_tokens)
+            cost_text = f" · ~${day_cost:.4f}" if day_cost is not None else ""
+            lines.append(
+                f"`{row.day}` {row.provider}/{row.model} — {row.requests} req · "
+                f"{row.input_tokens:,} in · {row.output_tokens:,} out{cost_text}"
+            )
+        embed.add_field(name="By day", value="\n".join(lines)[:1024], inline=False)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @unit.command(name="diagnostics", description="Bot, database and repository health")
     @require(PermissionLevel.STAFF)

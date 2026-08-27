@@ -13,7 +13,11 @@ import uuid
 import discord
 from discord import app_commands
 
-from app.bot.permissions import PermissionDeniedError, TrainerOnlyError
+from app.bot.permissions import (
+    DeveloperOnlyError,
+    PermissionDeniedError,
+    TrainerOnlyError,
+)
 from app.errors import (
     AppError,
     DatabaseError,
@@ -63,6 +67,13 @@ async def handle_app_command_error(
         await _respond(
             interaction,
             "🔒 This needs the **Trainer** role (set in `/unit setup`) or staff access.",
+        )
+    elif isinstance(original, DeveloperOnlyError):
+        log.info("Developer check failed: /%s by user %s", command, interaction.user.id)
+        await _respond(
+            interaction,
+            "🔒 Developer-only. This needs the **Developer** role "
+            "(set in `/unit setup`) — the server owner always has access.",
         )
     elif isinstance(original, app_commands.CheckFailure):
         log.info("Check failed: /%s by user %s in guild %s", command, interaction.user.id, guild_id)

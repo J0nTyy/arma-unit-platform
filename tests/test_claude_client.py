@@ -112,6 +112,7 @@ def make_client(result) -> tuple[ClaudeChatClient, FakeMessagesAPI]:
     client = ClaudeChatClient.__new__(ClaudeChatClient)  # skip real SDK setup
     client.model = "claude-test"
     client._max_output_tokens = 700
+    client._usage_hook = None
     api = FakeMessagesAPI(result)
     client._client = SimpleNamespace(messages=api)
     return client, api

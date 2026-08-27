@@ -64,4 +64,7 @@
   operations, attendance, certifications, missions as separate sheets),
   attached in Discord and saved on the host. Only the newest 10 exports are
   kept; `exports/latest/` always holds the current state as CSVs.
+- **AI spend (developers only):** `/unit usage` — requests, tokens and
+  estimated cost for the last 30 days, tracked by the bot itself. Needs the
+  Developer role from `/unit setup`; the server owner always has access.
 - **Health check:** `/unit diagnostics`.

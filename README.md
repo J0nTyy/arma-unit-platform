@@ -64,6 +64,7 @@ curated overview (staff sections appear only for staff).
 | `/unit setup` | Channels, roles, timezone, reminders | administrators |
 | `/unit sync` | Re-index unit knowledge/lore + refresh missions | staff |
 | `/unit export` | Unit data → one Excel workbook (newest 10 kept) | staff |
+| `/unit usage` | AI requests, tokens, estimated cost (30 days) | developers |
 | `/unit diagnostics` | Bot / database / repository health | staff |
 
 ## 2. Architecture

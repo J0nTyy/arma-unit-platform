@@ -50,6 +50,9 @@ class GuildConfiguration(Base):
     mission_maker_role_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # Members holding this role may grant/revoke training certifications.
     trainer_role_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # Members holding this role see developer-only data (AI spend, internals).
+    # Orthogonal to staff on purpose; unset = server owner only.
+    developer_role_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # Ambient chatter: occasional in-character messages in the general
     # channel (opt-in — costs AI tokens and personality is a taste thing).

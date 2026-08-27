@@ -121,6 +121,40 @@ async def ensure_trainer(interaction: discord.Interaction) -> None:
         raise TrainerOnlyError("trainer role required")
 
 
+class DeveloperOnlyError(app_commands.CheckFailure):
+    """Raised when a non-developer touches developer-only functionality."""
+
+
+async def is_developer(client: discord.Client, member) -> bool:
+    """Developers = the server owner, plus holders of the configured
+    Developer role.
+
+    Deliberately NOT staff-inclusive and NOT a PermissionLevel: developer is
+    an infrastructure-trust domain (API spend, internals, diagnostics data),
+    and staff membership says nothing about that trust. With no role
+    configured, only the server owner qualifies.
+    """
+    guild = getattr(member, "guild", None)
+    if guild is None:
+        return False
+    if member.id == guild.owner_id:
+        return True
+    guild_service = getattr(client, "guild_service", None)
+    if guild_service is None:
+        return False
+    configuration = await guild_service.get_configuration(guild.id)
+    if configuration is None or configuration.developer_role_id is None:
+        return False
+    return any(role.id == configuration.developer_role_id for role in member.roles)
+
+
+async def ensure_developer(interaction: discord.Interaction) -> None:
+    if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+        raise DeveloperOnlyError("not in a guild")
+    if not await is_developer(interaction.client, interaction.user):
+        raise DeveloperOnlyError("developer role required")
+
+
 async def ensure_level(interaction: discord.Interaction, level: PermissionLevel) -> None:
     """Server-side check for component callbacks; raises PermissionDeniedError."""
     if level is PermissionLevel.PUBLIC:
