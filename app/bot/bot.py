@@ -16,7 +16,7 @@ from app.bot.error_handler import handle_app_command_error
 from app.bot.views.components import DYNAMIC_ITEMS
 from app.config import Settings
 from app.database import Database
-from app.integrations.ai import AIChatClient
+from app.integrations.ai import AIChatClient, ChatClient, ClaudeChatClient
 from app.integrations.github import GitHubClient
 from app.integrations.sheets import SheetsClient
 from app.services import (
@@ -117,10 +117,13 @@ class UnitBot(commands.Bot):
             )
 
         # AI assistant is optional; /ask explains itself when unconfigured.
-        self.ai_client: AIChatClient | None = None
+        self.ai_client: ChatClient | None = None
         self.assistant_service: AssistantService | None = None
         if settings.ai_configured:
-            self.ai_client = AIChatClient(
+            # Claude speaks its own protocol (official Anthropic SDK); openai
+            # and gemini share the OpenAI-compatible client.
+            client_class = ClaudeChatClient if settings.ai_provider == "claude" else AIChatClient
+            self.ai_client = client_class(
                 api_key=settings.resolved_ai_key.get_secret_value(),  # type: ignore[union-attr]
                 model=settings.resolved_ai_model,
                 base_url=settings.resolved_ai_base_url,
@@ -139,7 +142,8 @@ class UnitBot(commands.Bot):
         else:
             log.warning(
                 "Unit assistant disabled: set OPENAI_API_KEY (or GEMINI_API_KEY with "
-                "AI_PROVIDER=gemini) to enable /ask"
+                "AI_PROVIDER=gemini, or ANTHROPIC_API_KEY with AI_PROVIDER=claude) "
+                "to enable /ask"
             )
 
     async def setup_hook(self) -> None:

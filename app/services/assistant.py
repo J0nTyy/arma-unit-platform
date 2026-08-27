@@ -22,7 +22,7 @@ from pathlib import Path
 
 from app.bot.permissions import PermissionLevel
 from app.errors import AIIntegrationError, RateLimitedError
-from app.integrations.ai import AIChatClient
+from app.integrations.ai import ChatClient
 from app.services.assistant_tools import ToolContext, ToolRegistry
 
 log = logging.getLogger(__name__)
@@ -108,7 +108,7 @@ class ConversationMemory:
 class AssistantService:
     def __init__(
         self,
-        client: AIChatClient,
+        client: ChatClient,
         registry: ToolRegistry,
         *,
         personality: str,

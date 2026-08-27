@@ -16,6 +16,7 @@ ALL_ENV_VARS = [
     "GITHUB_TOKEN",
     "OPENAI_API_KEY",
     "GEMINI_API_KEY",
+    "ANTHROPIC_API_KEY",
     "AI_PROVIDER",
     "AI_MODEL",
     "AI_BASE_URL",
@@ -128,6 +129,17 @@ def test_ai_provider_resolution(clean_env):
     assert settings.resolved_ai_key.get_secret_value() == "g-test"
     assert settings.resolved_ai_model == "gemini-2.5-pro"
     assert "generativelanguage" in settings.resolved_ai_base_url
+
+    clean_env.delenv("AI_MODEL")
+    clean_env.setenv("AI_PROVIDER", "claude")
+    settings = load_settings(env_file=None)
+    assert settings.ai_configured is False  # gemini key doesn't count for claude
+    clean_env.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    settings = load_settings(env_file=None)
+    assert settings.ai_configured is True
+    assert settings.resolved_ai_key.get_secret_value() == "sk-ant-test"
+    assert settings.resolved_ai_model == "claude-opus-4-8"
+    assert settings.resolved_ai_base_url is None  # official SDK default endpoint
 
 
 @pytest.mark.parametrize(

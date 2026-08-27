@@ -15,7 +15,7 @@ Architecture details live in [PROJECT.md](PROJECT.md).
 
 - **AI unit assistant**: `/ask` (or @mention in the ask channel) answers
   from the unit's knowledge base, mission library and live operation data —
-  provider-switchable (OpenAI or Gemini via `.env`), permission-aware,
+  provider-switchable (OpenAI, Gemini or Claude via `.env`), permission-aware,
   read-only, and honest when information doesn't exist
 - **Operations**: schedule a mission as an operation through a guided flow
   (mission picker → date/time modal → preview → publish), polished operation
@@ -149,8 +149,8 @@ python -m app.main       # start the bot + API
 | `GITHUB_MISSIONS_REPOSITORY` | for `/mission` | unset | Missions repository name                    |
 | `GITHUB_MISSIONS_BRANCH` | —        | `main`        | Branch the bot reads missions from             |
 | `GITHUB_TOKEN`           | private repos | unset    | Fine-grained PAT (contents: read-only)         |
-| `AI_PROVIDER`            | —        | `openai`      | `openai` or `gemini` — switch anytime          |
-| `OPENAI_API_KEY` / `GEMINI_API_KEY` | for `/ask` | unset | Key for the selected provider          |
+| `AI_PROVIDER`            | —        | `openai`      | `openai`, `gemini` or `claude` — switch anytime |
+| `OPENAI_API_KEY` / `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` | for `/ask` | unset | Key for the selected provider |
 | `AI_MODEL`               | —        | provider default | Pin a specific model                        |
 | `AI_REQUESTS_PER_MINUTE` | —        | `4`           | Per-user assistant rate limit                  |
 

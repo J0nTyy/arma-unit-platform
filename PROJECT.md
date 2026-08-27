@@ -11,7 +11,7 @@ only in staff channels), opt-in ambient chatter (5–30 min, mood-aware),
 `/training` certifications with Discord role sync + trainer role, and a
 fully documented editable "brain" in `content/` (see §17).
 Phase 5: player profiles, identity & finalized attendance (see §15). Phase 4: AI unit assistant (`/ask`,
-provider-switchable OpenAI/Gemini, tool-based grounding, permission-aware
+provider-switchable OpenAI/Gemini/Claude, tool-based grounding, permission-aware
 knowledge base — §13). Phase 3 operation-flow overhaul:
 two-field date/time modal (Discord offers bots no calendar/clock widgets), operation names taken from the
 mission file, briefings as formatted plain messages with images beneath,
@@ -274,10 +274,14 @@ phase is strictly read-only.
 
 ### Provider switching
 
-One OpenAI-compatible client (`app/integrations/ai/`) serves every provider.
-`.env` decides: `AI_PROVIDER=openai` (OPENAI_API_KEY, default `gpt-5-mini`)
-or `AI_PROVIDER=gemini` (GEMINI_API_KEY via Google's compatibility endpoint,
-default `gemini-2.5-flash`); `AI_MODEL`/`AI_BASE_URL` override anything.
+Two clients live in `app/integrations/ai/`, both speaking the same interface
+(`chat(messages, tools) -> AIResponse`): an OpenAI-compatible one for
+`AI_PROVIDER=openai` (OPENAI_API_KEY, default `gpt-5-mini`) and `gemini`
+(GEMINI_API_KEY via Google's compatibility endpoint, default
+`gemini-flash-latest`), and a Claude one on the official Anthropic SDK for
+`AI_PROVIDER=claude` (ANTHROPIC_API_KEY, default `claude-opus-4-8`) — Claude's
+wire format differs, so `claude.py` translates the shared OpenAI-style
+transcript at the edge. `AI_MODEL`/`AI_BASE_URL` override anything.
 Without a key the bot runs normally and `/ask` explains what's missing.
 
 ### Tools (all member-level, read-only)

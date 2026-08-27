@@ -17,10 +17,13 @@ from app.errors import ConfigurationError
 
 _LOG_LEVELS = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
 
-# AI provider -> (default model, OpenAI-compatible base URL, settings key field)
+# AI provider -> (default model, base URL override, settings key field)
 # gemini-flash-latest is an alias that always tracks Google's current flash
 # model — pinned versions age out of the API (and their free-tier quotas vary
 # wildly: new flagship models may allow only ~20 free requests/day).
+# claude uses the official Anthropic SDK (not the OpenAI-compatible path);
+# claude-opus-4-8 is Anthropic's flagship — pin AI_MODEL=claude-haiku-4-5
+# for a much cheaper option.
 AI_PROVIDER_DEFAULTS = {
     "openai": ("gpt-5-mini", None, "openai_api_key"),
     "gemini": (
@@ -28,6 +31,7 @@ AI_PROVIDER_DEFAULTS = {
         "https://generativelanguage.googleapis.com/v1beta/openai/",
         "gemini_api_key",
     ),
+    "claude": ("claude-opus-4-8", None, "anthropic_api_key"),
 }
 
 
@@ -81,9 +85,9 @@ class Settings(BaseSettings):
     github_missions_repository: str | None = None
     github_missions_branch: str = "main"
 
-    # AI assistant. One OpenAI-compatible client serves every provider:
-    # switch with AI_PROVIDER, no code changes needed.
-    ai_provider: Literal["openai", "gemini"] = "openai"
+    # AI assistant. openai/gemini share one OpenAI-compatible client; claude
+    # uses the official Anthropic SDK. Switch with AI_PROVIDER, no code changes.
+    ai_provider: Literal["openai", "gemini", "claude"] = "openai"
     ai_model: str | None = None  # blank = the provider's default below
     ai_base_url: str | None = None  # override for other compatible providers
     ai_max_output_tokens: int = 700
@@ -91,6 +95,7 @@ class Settings(BaseSettings):
     ai_personality_file: str = "content/personality.md"
     openai_api_key: SecretStr | None = None
     gemini_api_key: SecretStr | None = None
+    anthropic_api_key: SecretStr | None = None
 
     # Google Sheets export (optional). Credentials = the full service-account
     # JSON pasted as ONE line; the spreadsheet must be shared with the
@@ -129,6 +134,7 @@ class Settings(BaseSettings):
         "github_missions_repository",
         "openai_api_key",
         "gemini_api_key",
+        "anthropic_api_key",
         "ai_model",
         "ai_base_url",
         "google_sheets_credentials",
