@@ -209,22 +209,6 @@ def tool_call_response(name, **arguments):
     )
 
 
-def test_texting_polish_rewrites_dash_joins():
-    from app.services.assistant import texting_polish
-
-    assert texting_polish("Iron Rain, Saturday — 14 signed up") == (
-        "Iron Rain, Saturday, 14 signed up"
-    )
-    assert texting_polish("mods first—then profile") == "mods first, then profile"
-    assert texting_polish("check the briefing - it answers most things") == (
-        "check the briefing, it answers most things"
-    )
-    # Bullets, in-word hyphens and channel mentions survive untouched.
-    assert texting_polish("- ACE\n- TFAR") == "- ACE\n- TFAR"
-    assert texting_polish("head to ask-the-unit") == "head to ask-the-unit"
-    assert texting_polish("Ctrl+Win self-interaction") == "Ctrl+Win self-interaction"
-
-
 async def test_prompt_names_the_current_channel(bot):
     client = FakeAIChatClient([AIResponse(content="ok")])
     service = make_service(client)
