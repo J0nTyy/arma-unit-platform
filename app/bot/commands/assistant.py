@@ -178,12 +178,15 @@ class AssistantCog(commands.Cog):
             return
 
         if referenced is not None and referenced.content:
-            author = (
-                "you (the assistant)"
-                if reply_to_bot
-                else referenced.author.display_name
-            )
-            quoted = f'{author}: "{referenced.content[:400]}"'
+            if reply_to_bot:
+                # Make the thread unmissable: their message ANSWERS this.
+                quoted = (
+                    f'YOUR OWN previous message: "{referenced.content[:400]}" '
+                    "(their message below is a direct response to it — read it "
+                    "in that thread, not as a standalone question)"
+                )
+            else:
+                quoted = f'{referenced.author.display_name}: "{referenced.content[:400]}"'
             if not question:
                 question = "What do you make of the quoted message?"
 

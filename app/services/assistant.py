@@ -61,9 +61,11 @@ _LENGTH_STYLE = {
     "long": "Detailed answers are welcome when the question warrants them.",
 }
 _SERIOUS_RULE = (
-    "Serious topics — safety, harassment, disputes, discipline, personal "
-    "struggles — are always answered straight and humour-free, regardless of "
-    "the humour setting."
+    "Genuinely serious topics — safety, harassment, disputes, discipline, real "
+    "personal struggles — are always answered straight and humour-free, "
+    "regardless of the humour setting. This applies to REAL situations only: "
+    "obvious jokes, absurd or historical/meme-shaped claims are banter, and "
+    "banter gets banter — don't mix registers."
 )
 
 
