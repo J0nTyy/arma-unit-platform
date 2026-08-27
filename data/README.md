@@ -13,16 +13,19 @@ data/
         ├── memory/
         │   └── memories.md           assistant memory, readable (regenerated)
         ├── exports/
-        │   ├── members_<date>.csv    /unit export output — dated, never
-        │   ├── members_<date>.xlsx     overwritten (repeat exports get _2…)
-        │   └── latest/*.csv          daily "current state" snapshots
-        │                               (regenerated in place)
+        │   ├── unit-data_<date>.xlsx /unit export — ONE workbook, one sheet
+        │   │                           per dataset; only the newest 10 kept
+        │   └── latest/*.csv          "current state" snapshots, regenerated
+        │                               in place (daily + on every export)
         └── logs/                     server-scoped logs (generated)
 ```
 
-Datasets exported: `members`, `operations`, `attendance` (one row per
-attendance record — filter/sort friendly), `certifications`, `missions`.
-CSVs open directly in Excel/LibreOffice/Google Sheets (UTF-8 with BOM).
+Datasets: `members`, `operations`, `attendance` (one row per attendance
+record — filter/sort friendly), `certifications`, `missions`. The workbook
+keeps dated history for "how it looked that day"; `latest/` is always the
+current state as CSVs (UTF-8 with BOM — they open directly in
+Excel/LibreOffice/Google Sheets). File count stays bounded: at most 10
+workbooks + 5 latest CSVs + memories.md per server.
 
 Rules of the road:
 

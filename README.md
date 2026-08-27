@@ -7,7 +7,8 @@ signups, attendance, statistics, qualifications, lore, onboarding, an AI
 assistant and Arma server integration.
 
 **Current phase: 3 — Discord UX, channels, operations & attendance.**
-Architecture details live in [PROJECT.md](PROJECT.md).
+Architecture details live in [PROJECT.md](PROJECT.md). Using the AI
+assistant (asking, memory, reminders, tuning): [docs/assistant-guide.md](docs/assistant-guide.md).
 
 ---
 
@@ -62,7 +63,7 @@ curated overview (staff sections appear only for staff).
 | `/operation manage` | Lock / reschedule / complete / cancel | staff |
 | `/unit setup` | Channels, roles, timezone, reminders | administrators |
 | `/unit sync` | Re-index unit knowledge/lore + refresh missions | staff |
-| `/unit export` | Unit data → dated CSV/Excel files | staff |
+| `/unit export` | Unit data → one Excel workbook (newest 10 kept) | staff |
 | `/unit diagnostics` | Bot / database / repository health | staff |
 
 ## 2. Architecture

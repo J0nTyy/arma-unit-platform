@@ -465,17 +465,18 @@ volume-mounted in docker-compose so they survive image rebuilds.
 
 Two layers: `ExportService` (`app/services/exports.py`) writes tables to
 files and knows nothing about their contents — dated exports are never
-overwritten (collision → `_2`), snapshots regenerate in place, CSV is
-UTF-8-with-BOM for Excel, XLSX via openpyxl. `DataExportService`
-(`app/services/data_export.py`) builds the guild-scoped datasets (members,
-operations, attendance, certifications, missions) and the `memories.md`
-snapshot. Attendance is exported **one row per finalized record**
-(Player/Operation/Date/Signup/Final status/Role/Notes) — never one row per
-player with horizontal operation columns. Surfaces: `/unit export` (staff,
-dated CSV+XLSX, CSVs attached in Discord) and a daily scheduler pass that
-refreshes `exports/latest/*.csv` + `memory/memories.md`. Future
-`/export members|attendance|operations` commands (stage 5) reuse these
-services unchanged.
+overwritten (collision → `_2`) and are pruned to the newest N, snapshots
+regenerate in place, CSV is UTF-8-with-BOM for Excel, XLSX via openpyxl.
+`DataExportService` (`app/services/data_export.py`) builds the guild-scoped
+datasets (members, operations, attendance, certifications, missions) and
+the `memories.md` snapshot. Attendance is exported **one row per finalized
+record** (Player/Operation/Date/Signup/Final status/Role/Notes) — never one
+row per player with horizontal operation columns. Surfaces: `/unit export`
+(staff) writes ONE dated workbook with a sheet per dataset, attaches it in
+Discord, refreshes `exports/latest/*.csv`, and keeps only the newest 10
+workbooks; a daily scheduler pass refreshes `exports/latest/*.csv` +
+`memory/memories.md`. Future `/export members|attendance|operations`
+commands (stage 5) reuse these services unchanged.
 
 Server memory entries now carry `visibility` (`unit`/`staff`) and optional
 `expires_at` (migration 0009): expired facts are never recalled and are

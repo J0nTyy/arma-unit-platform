@@ -4,8 +4,11 @@ The database stays canonical; this service turns it into files people can
 open in Excel/LibreOffice, written into each server's isolated data
 directory (see data/README.md):
 
-    exports/<name>_<date>.csv|xlsx   staff-triggered, never overwritten
-    exports/latest/<name>.csv        daily snapshots, regenerated in place
+    exports/unit-data_<date>.xlsx    /unit export — ONE workbook, one sheet
+                                     per dataset; never overwritten; only
+                                     the newest few are kept
+    exports/latest/<name>.csv        current-state snapshots, regenerated
+                                     in place (daily + on every export)
     memory/memories.md               readable view of the assistant's memory
 
 Datasets (each attendance record is ONE ROW — filterable, sortable,
@@ -45,6 +48,9 @@ from app.services.exports import ExportService
 log = logging.getLogger(__name__)
 
 Dataset = tuple[list[str], list[list]]
+
+_WORKBOOK_NAME = "unit-data"
+_KEEP_DATED_WORKBOOKS = 10  # older /unit export files are deleted automatically
 
 
 def _when(moment: datetime | None) -> str:
@@ -224,37 +230,46 @@ class DataExportService:
 
     # --- writing to a server's data directory ---------------------------------
 
-    async def export_dated(
-        self,
-        guild_id: int,
-        exports_dir: Path,
-        *,
-        formats: tuple[str, ...] = ("csv", "xlsx"),
-    ) -> dict[str, tuple[list[Path], int]]:
-        """Staff-triggered export: dated files, never overwritten.
+    async def export_workbook(
+        self, guild_id: int, exports_dir: Path
+    ) -> tuple[Path, dict[str, int]]:
+        """Staff-triggered export: ONE dated Excel workbook (one sheet per
+        dataset), never overwritten. Old workbooks beyond the newest
+        _KEEP_DATED_WORKBOOKS are deleted so the folder can't fill up, and
+        the exports/latest/ CSVs are refreshed at the same time.
 
-        Returns {dataset: (paths written, row count)}.
+        Returns (workbook path, {dataset: row count}).
         """
         datasets = await self.datasets(guild_id)
-        results: dict[str, tuple[list[Path], int]] = {}
-        for name, (headers, rows) in datasets.items():
-            paths = await asyncio.to_thread(
-                self._exporter.dated_export, exports_dir, name, headers, rows,
-                formats=formats,
-            )
-            results[name] = (paths, len(rows))
-        log.info(
-            "Dated export for guild %s: %s",
-            guild_id, {name: count for name, (_, count) in results.items()},
+        sheets = {
+            name.capitalize(): (headers, rows)
+            for name, (headers, rows) in datasets.items()
+        }
+        path = await asyncio.to_thread(
+            self._exporter.dated_workbook, exports_dir, _WORKBOOK_NAME, sheets
         )
-        return results
+        removed = await asyncio.to_thread(
+            self._exporter.prune_dated, exports_dir, _WORKBOOK_NAME,
+            _KEEP_DATED_WORKBOOKS,
+        )
+        await asyncio.to_thread(self._write_latest, datasets, exports_dir)
+        counts = {name: len(rows) for name, (_, rows) in datasets.items()}
+        log.info(
+            "Export for guild %s -> %s (%s)%s",
+            guild_id, path.name, counts,
+            f"; pruned {len(removed)} old export(s)" if removed else "",
+        )
+        return path, counts
+
+    def _write_latest(self, datasets: dict[str, Dataset], exports_dir: Path) -> None:
+        latest = exports_dir / "latest"
+        for name, (headers, rows) in datasets.items():
+            self._exporter.snapshot(latest, name, headers, rows)
 
     async def write_snapshots(self, guild_id: int, exports_dir: Path) -> dict[str, int]:
         """Regenerate the 'latest state' CSVs (exports/latest/, overwritten)."""
         datasets = await self.datasets(guild_id)
-        latest = exports_dir / "latest"
-        for name, (headers, rows) in datasets.items():
-            await asyncio.to_thread(self._exporter.snapshot, latest, name, headers, rows)
+        await asyncio.to_thread(self._write_latest, datasets, exports_dir)
         return {name: len(rows) for name, (_, rows) in datasets.items()}
 
     async def write_memory_snapshot(self, guild_id: int, memory_dir: Path) -> Path:

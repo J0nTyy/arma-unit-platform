@@ -8,8 +8,8 @@ renaming the server never disconnects its data.
 | ----------------- | --------------------------------------------------------------- |
 | `config/`         | Server-specific configuration files                             |
 | `memory/`         | `memories.md` — readable assistant memory snapshot (generated)  |
-| `exports/`        | Dated CSV/XLSX from `/unit export` — never overwritten          |
-| `exports/latest/` | Daily "current state" CSV snapshots — regenerated in place      |
+| `exports/`        | `/unit export` workbooks (dated, newest 10 kept automatically)  |
+| `exports/latest/` | "Current state" CSV snapshots — regenerated in place            |
 | `logs/`           | Server-scoped log output (generated)                            |
 
 - `server.yaml` records the data format version — don't edit it.

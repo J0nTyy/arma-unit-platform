@@ -49,6 +49,32 @@ def test_snapshot_overwrites_in_place(tmp_path):
     assert len(list(tmp_path.glob("members*.csv"))) == 1  # no _2 files
 
 
+def test_dated_workbook_multi_sheet_and_collision(tmp_path):
+    service = ExportService()
+    sheets = {"Members": (HEADERS, ROWS), "Ops": (HEADERS, [])}
+    first = service.dated_workbook(tmp_path, "unit-data", sheets)
+    second = service.dated_workbook(tmp_path, "unit-data", sheets)
+
+    workbook = load_workbook(first)
+    assert workbook.sheetnames == ["Members", "Ops"]
+    assert workbook["Members"]["A2"].value == "Alpha"
+    assert workbook["Ops"]["A1"].value == "Name"  # empty sheet keeps headers
+    assert second.stem.endswith("_2")  # same-day rerun never overwrites
+
+
+def test_prune_dated_keeps_newest(tmp_path):
+    service = ExportService()
+    sheets = {"Members": (HEADERS, ROWS)}
+    # Creation order lives in the filenames (date + _N counter), so even
+    # same-instant writes prune correctly.
+    created = [service.dated_workbook(tmp_path, "unit-data", sheets) for _ in range(4)]
+
+    removed = ExportService.prune_dated(tmp_path, "unit-data", keep=2)
+    assert [p.name for p in removed] == [p.name for p in created[:2]]
+    survivors = {p.name for p in tmp_path.glob("unit-data_*.xlsx")}
+    assert survivors == {p.name for p in created[2:]}
+
+
 def test_empty_dataset_still_writes_headers(tmp_path):
     service = ExportService()
     paths = ExportService().dated_export(tmp_path, "empty", HEADERS, [], formats=("csv", "xlsx"))

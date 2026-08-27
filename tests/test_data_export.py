@@ -91,28 +91,49 @@ async def test_export_is_guild_scoped(database):
     assert [row[0] for row in rows] == ["InGuild"]
 
 
-async def test_export_dated_and_snapshots_write_files(database, tmp_path):
+async def test_export_workbook_is_one_file_with_all_sheets(database, tmp_path):
+    from openpyxl import load_workbook
+
     await _scenario(database)
     service = DataExportService(database)
+    exports = tmp_path / "exports"
 
-    results = await service.export_dated(1, tmp_path / "exports")
-    assert set(results) == {
-        "members", "operations", "attendance", "certifications", "missions"
+    path, counts = await service.export_workbook(1, exports)
+    assert path.name.startswith("unit-data_") and path.suffix == ".xlsx"
+    assert counts["members"] == 1 and counts["attendance"] == 1
+
+    workbook = load_workbook(path)
+    assert set(workbook.sheetnames) == {
+        "Members", "Operations", "Attendance", "Certifications", "Missions"
     }
-    paths, count = results["attendance"]
-    assert count == 1
-    assert {p.suffix for p in paths} == {".csv", ".xlsx"}
-    headers, rows = _read_csv(next(p for p in paths if p.suffix == ".csv"))
-    assert headers[0] == "Player" and rows[0][0] == "Kartikey"
+    attendance = workbook["Attendance"]
+    assert attendance["A1"].value == "Player" and attendance["A2"].value == "Kartikey"
 
-    # Snapshots regenerate in place — run twice, still exactly one file each.
-    await service.write_snapshots(1, tmp_path / "exports")
-    await service.write_snapshots(1, tmp_path / "exports")
-    latest = tmp_path / "exports" / "latest"
+    # The always-current CSVs are refreshed by the same export call.
+    latest = exports / "latest"
     assert sorted(p.name for p in latest.glob("*.csv")) == [
         "attendance.csv", "certifications.csv", "members.csv",
         "missions.csv", "operations.csv",
     ]
+    # Snapshots regenerate in place — running again adds no extra files there.
+    await service.write_snapshots(1, exports)
+    assert len(list(latest.glob("*.csv"))) == 5
+
+
+async def test_export_workbook_retention_caps_file_count(database, tmp_path):
+    await _scenario(database)
+    service = DataExportService(database)
+    exports = tmp_path / "exports"
+
+    paths = []
+    for _ in range(13):
+        path, _counts = await service.export_workbook(1, exports)
+        paths.append(path)
+
+    remaining = sorted(p.name for p in exports.glob("unit-data_*.xlsx"))
+    assert len(remaining) == 10  # never more than the newest 10
+    assert paths[-1].name in remaining      # newest kept
+    assert paths[0].name not in remaining   # oldest pruned
 
 
 async def test_memory_snapshot_is_readable_markdown(database, tmp_path):

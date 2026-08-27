@@ -19,7 +19,18 @@
   eligible to train for. `/training info` lists all certifications and their
   requirements.
 - **Unit stats:** `/stats`.
-- **Ask anything:** `/ask <question>` or just @mention the bot.
+- **Ask anything:** `/ask <question>`, @mention the bot anywhere, or just
+  reply to one of its messages. Follow-up questions work for ~15 minutes
+  ("what's the next op?" → "what map?"). Reply to someone's message while
+  mentioning the bot and it can answer about that message.
+- **Make it remember things:** tell it facts worth keeping — "@mention
+  remember op nights moved to Fridays". It saves short durable facts to
+  server memory and uses them in later answers. Temporary facts can expire:
+  "remember for the next 3 days that the server is down". It never stores
+  whole conversations or private details.
+- **Operation reminders are automatic** — 24 hours and 1 hour before each
+  published operation, posted on the signup post with attendee pings. The
+  assistant can tell you the schedule but cannot set personal reminders.
 
 <!-- STAFF-ONLY BELOW -->
 
@@ -46,5 +57,11 @@
   qualifications. `/members search:<name>` jumps straight to one.
 - **Grant certifications:** `/training grant` (needs Trainer role or staff).
 - **Bot memory:** `/unit memories` lists what the assistant has remembered;
-  delete anything wrong or stale there.
+  delete anything wrong or stale there. A readable copy lives in the
+  server's data folder (`memory/memories.md`) — the command is the editor,
+  the file is just for reading.
+- **Export unit data:** `/unit export` — one Excel workbook (members,
+  operations, attendance, certifications, missions as separate sheets),
+  attached in Discord and saved on the host. Only the newest 10 exports are
+  kept; `exports/latest/` always holds the current state as CSVs.
 - **Health check:** `/unit diagnostics`.
