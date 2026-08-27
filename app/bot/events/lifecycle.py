@@ -16,7 +16,8 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-_GREETING_FILE = "content/greeting.md"
+_GREETING_FILE = "unit/personality/greeting.md"
+_GREETING_TEMPLATE = "templates/unit/personality/greeting.example.md"
 _GREETING_FALLBACK = (
     "👋 Welcome to **{unit_name}**, {member}!\n\n{channels}\n\n"
     "Run `/help` to see what I can do, and `/profile` to set up your profile. o7"
@@ -32,12 +33,12 @@ _GREETING_CHANNELS = (
 
 
 def _load_greeting_template() -> str:
-    """Staff-editable greeting (content/greeting.md, private/gitignored);
-    falls back to the shipped example, then a built-in.
+    """Staff-editable greeting (unit/personality/greeting.md, private);
+    falls back to the shipped template, then a built-in.
 
     Placeholders: {member} {unit_name} {channels}
     """
-    for candidate in (_GREETING_FILE, _GREETING_FILE.replace(".md", ".example.md")):
+    for candidate in (_GREETING_FILE, _GREETING_TEMPLATE):
         try:
             text = Path(candidate).read_text(encoding="utf-8").strip()
             if text:
@@ -50,6 +51,7 @@ def _load_greeting_template() -> str:
 class LifecycleEvents(commands.Cog):
     def __init__(self, bot: "UnitBot") -> None:
         self.bot = bot
+        self._knowledge_synced = False
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
@@ -57,6 +59,22 @@ class LifecycleEvents(commands.Cog):
             "Connected to Discord as %s (id=%s) — serving %d guild(s)",
             self.bot.user, self.bot.user.id if self.bot.user else "?", len(self.bot.guilds),
         )
+        # Every served guild gets its isolated data directory (idempotent).
+        for guild in self.bot.guilds:
+            try:
+                self.bot.server_data.ensure(guild.id, guild.name)
+            except OSError:
+                log.exception("Could not create data directory for guild %s", guild.id)
+        # Knowledge is local files now — index it once at startup so /ask
+        # works without waiting for a manual /unit sync.
+        if not self._knowledge_synced:
+            self._knowledge_synced = True
+            try:
+                result = await self.bot.knowledge_service.sync()
+                for path, error in result.failures:
+                    log.warning("Knowledge file skipped: %s — %s", path, error)
+            except Exception:  # noqa: BLE001 — startup sync must not raise
+                log.exception("Startup knowledge sync failed — run /unit sync")
 
     @commands.Cog.listener()
     async def on_resumed(self) -> None:
@@ -134,6 +152,10 @@ class LifecycleEvents(commands.Cog):
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild) -> None:
         log.info("Joined guild %s (id=%s)", guild.name, guild.id)
+        try:
+            self.bot.server_data.ensure(guild.id, guild.name)
+        except OSError:
+            log.exception("Could not create data directory for guild %s", guild.id)
         try:
             await self.bot.guild_service.register_guild(guild.id, guild.name)
         except DatabaseError:

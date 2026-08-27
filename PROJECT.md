@@ -294,13 +294,14 @@ members get declined *counts* in rosters, staff get names.
 
 ### Knowledge base
 
-Markdown files under `knowledge/` in the missions repo, frontmatter
+Local Markdown files under `unit/knowledge/` and `unit/lore/` (private to
+the deployment — the missions repo holds mission content only), frontmatter
 (`title` / `visibility: public|member|staff` / `tags`), indexed into the
-`knowledge_documents` table by `/unit sync` (validation failures reported,
-never fatal). Retrieval is keyword scoring per `##` section with
-visibility filtering *before* scoring — an interface a future vector search
-can replace without touching the AI service. Staff guide: the repo's
-`knowledge/README.md`.
+`knowledge_documents` table at startup and by `/unit sync` (validation
+failures reported, never fatal). Retrieval is keyword scoring per `##`
+section with visibility filtering *before* scoring — an interface a future
+vector search can replace without touching the AI service. Staff guides:
+the READMEs inside those folders.
 
 ### Personality
 
@@ -427,14 +428,38 @@ Requirements (min ops attended, prerequisite certs) live in
 Trainer role is configured in `/unit setup`; trainer is deliberately NOT a
 permission level (orthogonal to the staff ladder).
 
-### The editable brain (`content/`)
+### The editable brain (`unit/`)
 
-`personality.md` (voice, reply types, few-shot examples, grounding rules —
-annotated with editing comments), `greeting.md` (new-member welcome,
-placeholders `{member}/{unit_name}/{channels}`), `command-guide.md`
-(command how-tos; below the STAFF-ONLY marker only staff see it via the
-`get_command_guide` tool), and `README.md` — the staff guide to all of it.
-Restart applies content changes; `/unit sync` applies knowledge changes.
+`unit/personality/personality.md` (voice, reply types, few-shot examples,
+grounding rules — annotated with editing comments),
+`unit/personality/greeting.md` (new-member welcome, placeholders
+`{member}/{unit_name}/{channels}`), `unit/lore/` + `unit/knowledge/` (the
+indexed knowledge base), and `content/command-guide.md` (generic command
+how-tos; below the STAFF-ONLY marker only staff see it via the
+`get_command_guide` tool). Staff guides: `unit/README.md` and
+`content/README.md`. Restart applies personality changes; `/unit sync`
+applies knowledge changes.
+
+## Data architecture (Pre-Phase 6A)
+
+Three ownership categories, kept physically separate:
+
+1. **Application source** (Git): code, schemas, migrations, docs, and
+   `templates/` — the public starting points for unit config.
+2. **Unit configuration** (`unit/`, gitignored): lore, knowledge,
+   personality, `config/unit.yaml` (`schema_version`). Auto-initialized
+   from `templates/unit/` on first run; never overwritten.
+3. **Server-collected data** (`data/servers/<name>_<guild-id>/`,
+   gitignored): per-guild `config/`, `memory/`, `exports/`, `logs/` plus a
+   `server.yaml` marker (`data_version`). Created idempotently at startup
+   and on guild join; directories are resolved strictly by the `_<guild-id>`
+   suffix (`ServerDataService` in `app/services/server_data.py`), so guild
+   renames never orphan data and one guild can never read another's folder.
+
+The **database stays canonical** for relational data (players, operations,
+attendance, memory); server folders hold configuration and generated
+human-readable snapshots/exports. Both `unit/` and `data/` are
+volume-mounted in docker-compose so they survive image rebuilds.
 
 ## 18. Phase 1–2 reference (unchanged)
 

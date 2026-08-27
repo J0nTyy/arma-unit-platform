@@ -58,7 +58,7 @@ async def test_expected_commands_registered(bot):
     ]
     unit = bot.tree.get_command("unit")
     assert sorted(c.name for c in unit.commands) == [
-        "diagnostics", "memories", "setup", "sheets", "sync",
+        "diagnostics", "memories", "setup", "sync",
     ]
 
 

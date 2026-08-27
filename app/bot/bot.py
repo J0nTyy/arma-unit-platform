@@ -18,7 +18,6 @@ from app.config import Settings
 from app.database import Database
 from app.integrations.ai import AIChatClient, ChatClient, ClaudeChatClient
 from app.integrations.github import GitHubClient
-from app.integrations.sheets import SheetsClient
 from app.services import (
     AssistantService,
     AttendanceService,
@@ -29,8 +28,9 @@ from app.services import (
     OperationService,
     PlayerService,
     PublicationService,
-    SheetExportService,
+    ServerDataService,
     StatusService,
+    UnitConfigService,
 )
 from app.services.assistant import load_personality
 from app.services.assistant_tools import build_default_registry
@@ -76,26 +76,26 @@ class UnitBot(commands.Bot):
         self.attendance_service = AttendanceService(database)
         self.memory_service = MemoryService(database)
 
-        # Google Sheets export is optional; /unit sheets explains setup.
-        self.sheets_service: SheetExportService | None = None
-        if settings.sheets_configured:
-            try:
-                self.sheets_service = SheetExportService(
-                    database,
-                    SheetsClient(
-                        settings.google_sheets_credentials.get_secret_value(),  # type: ignore[union-attr]
-                        settings.google_sheets_spreadsheet_id,  # type: ignore[arg-type]
-                    ),
-                )
-                log.info("Google Sheets export enabled")
-            except Exception:  # noqa: BLE001 — bad credentials must not kill the bot
-                log.exception("Google Sheets misconfigured — export disabled")
+        # Unit configuration (lore/knowledge/personality) is local and private
+        # to the deployment; first run copies editable templates into unit/.
+        self.unit_config = UnitConfigService()
+        created = self.unit_config.initialize()
+        if created:
+            log.info(
+                "Unit configuration initialized from templates (%d file(s)) — "
+                "edit the files under unit/ to make it yours",
+                len(created),
+            )
+        # Per-guild data directories under data/servers/<name>_<id>/ — created
+        # on startup and on guild join (see lifecycle events).
+        self.server_data = ServerDataService()
+        # Knowledge is indexed from unit/knowledge + unit/lore (no GitHub).
+        self.knowledge_service = KnowledgeService(database, self.unit_config.root)
 
         # Mission repository integration is optional; /mission commands explain
         # the required setup when it is not configured.
         self.github_client: GitHubClient | None = None
         self.mission_service: MissionService | None = None
-        self.knowledge_service: KnowledgeService | None = None
         if settings.missions_repository_configured:
             token = settings.github_token.get_secret_value() if settings.github_token else None
             self.github_client = GitHubClient(
@@ -105,7 +105,6 @@ class UnitBot(commands.Bot):
                 token=token,
             )
             self.mission_service = MissionService(database, self.github_client)
-            self.knowledge_service = KnowledgeService(database, self.github_client)
             log.info(
                 "Mission repository: %s (branch %s)",
                 self.github_client.repository_url, settings.github_missions_branch,

@@ -21,8 +21,8 @@ dependencies = [
     "openai>=1.60",
     # AI assistant — Claude via the official Anthropic SDK (AI_PROVIDER=claude)
     "anthropic>=1.1",
-    # Google Sheets export (unit data mirrored to a staff spreadsheet)
-    "gspread>=6.0",
+    # Unit/server configuration files (unit.yaml, server.yaml markers)
+    "pyyaml>=6.0",
     # Database
     "sqlalchemy[asyncio]>=2.0.36",
     "asyncpg>=0.30",         # PostgreSQL (production)

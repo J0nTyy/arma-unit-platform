@@ -33,9 +33,11 @@ Thumbs.db
 ideas.txt
 notes.txt
 
-# The unit's actual bot personality is private — examples ship instead
-content/personality.md
-content/greeting.md
+# Unit-specific configuration (lore, knowledge, personality) — private per
+# deployment; templates/unit/ ships the public starting points instead
+unit/*
+!unit/README.md
 
-# Google service-account credentials — never committed
-google-credentials*.json
+# Server-generated data (per-guild folders, exports, memory snapshots)
+data/*
+!data/README.md

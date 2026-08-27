@@ -18,8 +18,13 @@ from app.services.operations import (
     TickResult,
 )
 from app.services.publishing import PublicationService
-from app.services.sheets_export import SheetExportService
+from app.services.server_data import (
+    ServerDataContext,
+    ServerDataService,
+    sanitize_server_name,
+)
 from app.services.status import StatusReport, StatusService
+from app.services.unit_config import UnitConfigService, UnitConfigStatus
 
 __all__ = [
     "AssistantService",
@@ -38,10 +43,14 @@ __all__ = [
     "ProfileSummary",
     "PublicationService",
     "Roster",
-    "SheetExportService",
+    "ServerDataContext",
+    "ServerDataService",
     "StatusReport",
     "StatusService",
     "SyncFailure",
     "SyncResult",
     "TickResult",
+    "UnitConfigService",
+    "UnitConfigStatus",
+    "sanitize_server_name",
 ]

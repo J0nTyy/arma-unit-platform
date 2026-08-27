@@ -10,6 +10,7 @@ COPY pyproject.toml README.md alembic.ini ./
 COPY app ./app
 COPY migrations ./migrations
 COPY content ./content
+COPY templates ./templates
 
 RUN pip install .
 

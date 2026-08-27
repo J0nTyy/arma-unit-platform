@@ -29,6 +29,12 @@ services:
       API_HOST: 0.0.0.0
     ports:
       - "8000:8000"
+    volumes:
+      # Private unit configuration (lore, knowledge, personality) and
+      # server-generated data live on the host — they survive image
+      # rebuilds and can be edited without rebuilding.
+      - ./unit:/srv/app/unit
+      - ./data:/srv/app/data
     depends_on:
       db:
         condition: service_healthy

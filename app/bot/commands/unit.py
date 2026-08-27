@@ -14,7 +14,6 @@ from app.bot.permissions import PermissionLevel, ensure_level, require
 from app.bot.views.components import respond_error
 from app.bot.views.publish import refresh_guild_publications
 from app.bot.views.setup import SetupHubView, build_setup_embed
-from app.errors import MissionsNotConfiguredError
 
 if TYPE_CHECKING:
     from app.bot.bot import UnitBot
@@ -81,45 +80,63 @@ class UnitCog(commands.Cog):
         )
 
     @unit.command(
-        name="sync", description="Refresh missions and knowledge from GitHub, update posts"
+        name="sync",
+        description="Re-index unit knowledge/lore and refresh missions from GitHub",
     )
     @require(PermissionLevel.STAFF)
     async def unit_sync(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
-        if self.bot.mission_service is None:
-            raise MissionsNotConfiguredError()
         assert interaction.guild is not None
-        result = await self.bot.mission_service.sync()
-        updated, stale = await refresh_guild_publications(self.bot, interaction.guild.id)
-        knowledge = None
-        if self.bot.knowledge_service is not None:
-            knowledge = await self.bot.knowledge_service.sync()
 
-        healthy = not result.failures and result.invalid == 0
+        # Local unit knowledge + lore always sync; missions need GitHub.
+        knowledge = await self.bot.knowledge_service.sync()
+        result = None
+        updated = stale = 0
+        if self.bot.mission_service is not None:
+            result = await self.bot.mission_service.sync()
+            updated, stale = await refresh_guild_publications(self.bot, interaction.guild.id)
+
+        healthy = not knowledge.failures and (
+            result is None or (not result.failures and result.invalid == 0)
+        )
         embed = discord.Embed(
-            title="Mission sync complete",
+            title="Unit sync complete",
             colour=embeds.GREEN if healthy else embeds.ORANGE,
-            description=f"Source: {self.bot.mission_service.repository_url}",
         )
-        embed.add_field(
-            name="Missions",
-            value=f"{result.indexed} indexed ({result.valid} valid, {result.invalid} invalid)",
+        knowledge_value = (
+            f"{knowledge.indexed} docs indexed, {knowledge.removed} removed "
+            f"(from `unit/knowledge` + `unit/lore`)"
         )
-        embed.add_field(name="Removed", value=str(result.removed))
-        embed.add_field(name="Published posts refreshed", value=f"{updated} ({stale} stale)")
-        if knowledge is not None:
-            knowledge_value = f"{knowledge.indexed} docs indexed, {knowledge.removed} removed"
-            if knowledge.failures:
-                knowledge_value += "\n" + "\n".join(
-                    f"✗ `{path}` — {error}" for path, error in knowledge.failures[:4]
-                )
-            embed.add_field(name="Knowledge base", value=knowledge_value[:1024], inline=False)
-        if result.failures:
-            failure_lines = "\n".join(
-                f"✗ `{failure.directory}` — {failure.errors[0]}"
-                for failure in result.failures[:5]
+        if knowledge.failures:
+            knowledge_value += "\n" + "\n".join(
+                f"✗ `{path}` — {error}" for path, error in knowledge.failures[:4]
             )
-            embed.add_field(name="Could not be indexed", value=failure_lines[:1024], inline=False)
+        embed.add_field(name="Knowledge base", value=knowledge_value[:1024], inline=False)
+        if result is not None:
+            embed.add_field(
+                name="Missions",
+                value=(
+                    f"{result.indexed} indexed ({result.valid} valid, {result.invalid} "
+                    f"invalid), {result.removed} removed — "
+                    f"{self.bot.mission_service.repository_url}"
+                ),
+                inline=False,
+            )
+            embed.add_field(name="Published posts refreshed", value=f"{updated} ({stale} stale)")
+            if result.failures:
+                failure_lines = "\n".join(
+                    f"✗ `{failure.directory}` — {failure.errors[0]}"
+                    for failure in result.failures[:5]
+                )
+                embed.add_field(
+                    name="Could not be indexed", value=failure_lines[:1024], inline=False
+                )
+        else:
+            embed.add_field(
+                name="Missions",
+                value="⚠️ Repository not configured (GITHUB_MISSIONS_* in .env)",
+                inline=False,
+            )
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     @unit.command(name="memories", description="Review and prune the assistant's server memory")
@@ -151,25 +168,6 @@ class UnitCog(commands.Cog):
             embed=embed, view=ForgetMemoryView(self.bot, memories), ephemeral=True
         )
 
-    @unit.command(name="sheets", description="Export unit data to the Google spreadsheet now")
-    @require(PermissionLevel.STAFF)
-    async def unit_sheets(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        assert interaction.guild is not None
-        if self.bot.sheets_service is None:
-            await interaction.followup.send(
-                "⚠️ Google Sheets isn't configured — set GOOGLE_SHEETS_CREDENTIALS "
-                "and GOOGLE_SHEETS_SPREADSHEET_ID in `.env` (see README).",
-                ephemeral=True,
-            )
-            return
-        results = await self.bot.sheets_service.export_all(interaction.guild.id)
-        summary = " · ".join(f"{tab}: {count}" for tab, count in results.items())
-        await interaction.followup.send(
-            f"📊 Spreadsheet updated — {summary}\n{self.bot.sheets_service.url}",
-            ephemeral=True,
-        )
-
     @unit.command(name="diagnostics", description="Bot, database and repository health")
     @require(PermissionLevel.STAFF)
     async def unit_diagnostics(self, interaction: discord.Interaction) -> None:
@@ -197,11 +195,7 @@ class UnitCog(commands.Cog):
             inline=False,
         )
         if self.bot.assistant_service is not None and self.bot.ai_client is not None:
-            knowledge_count = (
-                await self.bot.knowledge_service.document_count()
-                if self.bot.knowledge_service
-                else 0
-            )
+            knowledge_count = await self.bot.knowledge_service.document_count()
             embed.add_field(
                 name="Unit assistant",
                 value=(
@@ -216,15 +210,16 @@ class UnitCog(commands.Cog):
                 value="⚠️ Disabled — set OPENAI_API_KEY or GEMINI_API_KEY (+ AI_PROVIDER)",
                 inline=False,
             )
-        embed.add_field(
-            name="Sheets export",
-            value=(
-                f"🟢 {self.bot.sheets_service.url}"
-                if self.bot.sheets_service
-                else "⚪ Not configured (optional)"
-            ),
-            inline=False,
-        )
+        unit_status = self.bot.unit_config.status()
+        if not unit_status.initialized:
+            unit_value = "⚠️ Not initialized — restart the bot to copy templates into `unit/`"
+        else:
+            unit_value = (
+                f"🟢 v{unit_status.schema_version} · {unit_status.lore_documents} lore + "
+                f"{unit_status.knowledge_documents} knowledge docs · personality "
+                + ("customized" if unit_status.personality_customized else "template (edit `unit/personality/personality.md`)")
+            )
+        embed.add_field(name="Unit configuration", value=unit_value, inline=False)
         if configuration is None:
             embed.add_field(
                 name="Server configuration",

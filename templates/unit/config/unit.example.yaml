@@ -1,0 +1,13 @@
+# Unit configuration — copied to unit/config/unit.yaml on first run.
+# This file is private to your deployment (never committed to Git).
+#
+# Discord-side settings (channels, roles, timezone) are configured with
+# /unit setup inside Discord, not here.
+
+# Version of this file's layout. Used for future automatic migrations —
+# do not change it by hand.
+schema_version: 1
+
+# Optional display name used in documents and exports. Leave blank to use
+# the name configured in Discord via /unit setup.
+unit_name: ""

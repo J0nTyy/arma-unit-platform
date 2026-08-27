@@ -3,21 +3,26 @@
 Everything that shapes how the bot talks and what it knows lives in plain
 text files. No coding needed for any of this.
 
+> **Moved in v0.10:** the private files (personality, greeting, lore,
+> knowledge) now live under **`unit/`** — see `unit/README.md`. This folder
+> keeps only generic, public app content.
+
 ## The three layers (edit in this order of impact)
 
 | What you want to change | Where | Applies |
 | --- | --- | --- |
-| **Voice & character** — how it talks, jokes, signs off | `content/personality.md` (this folder) | after bot restart |
-| **What it knows about the unit** — rules, lore, guides, SOPs | `knowledge/` folder in the **missions repo** | after `/unit sync` |
+| **Voice & character** — how it talks, jokes, signs off | `unit/personality/personality.md` | after bot restart |
+| **What it knows about the unit** — rules, lore, guides, SOPs | `unit/knowledge/` and `unit/lore/` | after `/unit sync` |
 | **What it remembers from chat** — small facts it picked up | saved automatically; review with `/unit memories` | instantly |
 
-Plus two smaller files in this folder:
+Other editable files:
 
-- `greeting.md` — the welcome message for new members. Placeholders:
-  `{member}` `{unit_name}` `{channels}` are filled in automatically.
-- `command-guide.md` — the step-by-step command instructions the bot gives
-  when someone asks "how do I …". Everything below the
-  `<!-- STAFF-ONLY BELOW -->` line is only ever shown to staff.
+- `unit/personality/greeting.md` — the welcome message for new members.
+  Placeholders: `{member}` `{unit_name}` `{channels}` are filled in
+  automatically.
+- `content/command-guide.md` (this folder) — the step-by-step command
+  instructions the bot gives when someone asks "how do I …". Everything
+  below the `<!-- STAFF-ONLY BELOW -->` line is only ever shown to staff.
 
 ## Tuning the personality — practical tips
 
@@ -31,15 +36,16 @@ Plus two smaller files in this folder:
 4. Be careful in "Grounding rules" — that section is what keeps the bot
    honest (no invented lore, no leaked staff info). Add rules, avoid
    removing them.
-5. After editing: `docker compose restart bot` (content files are read at
+5. After editing: `docker compose restart bot` (personality is read at
    startup and per-question).
 
 ## Teaching it unit knowledge
 
-Add or edit Markdown files under `knowledge/` in the missions repository —
-each file has a 3-line header (title / visibility / tags), documented in
-that folder's README. Push, then run `/unit sync`. The bot answers from
-those files immediately and honestly says when something isn't written yet.
+Add or edit Markdown files under `unit/knowledge/` (guides, rules, SOPs) or
+`unit/lore/` (canonical lore) — each file has a 3-line header
+(title / visibility / tags), documented in those folders' READMEs. Then run
+`/unit sync`. The bot answers from those files immediately and honestly
+says when something isn't written yet.
 
 ## Server memory
 

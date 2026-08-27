@@ -96,20 +96,10 @@ class Settings(BaseSettings):
     ai_reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
     ai_max_output_tokens: int = 700
     ai_requests_per_minute: int = 4
-    ai_personality_file: str = "content/personality.md"
+    ai_personality_file: str = "unit/personality/personality.md"
     openai_api_key: SecretStr | None = None
     gemini_api_key: SecretStr | None = None
     anthropic_api_key: SecretStr | None = None
-
-    # Google Sheets export (optional). Credentials = the full service-account
-    # JSON pasted as ONE line; the spreadsheet must be shared with the
-    # service account's email as Editor.
-    google_sheets_credentials: SecretStr | None = None
-    google_sheets_spreadsheet_id: str | None = None
-
-    @property
-    def sheets_configured(self) -> bool:
-        return bool(self.google_sheets_credentials and self.google_sheets_spreadsheet_id)
 
     @property
     def resolved_ai_model(self) -> str:
@@ -148,8 +138,6 @@ class Settings(BaseSettings):
         "ai_model",
         "ai_base_url",
         "ai_reasoning_effort",
-        "google_sheets_credentials",
-        "google_sheets_spreadsheet_id",
         mode="before",
     )
     @classmethod

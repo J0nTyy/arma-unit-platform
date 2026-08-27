@@ -6,6 +6,7 @@ tools run against real services over SQLite.
 
 import json
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -25,20 +26,21 @@ from app.services import (
 )
 from app.services.assistant import AssistantService, RateLimiter, load_personality
 from app.services.assistant_tools import ToolContext, build_default_registry
-from tests.test_knowledge import KNOWLEDGE_FILES
+from tests.test_knowledge import write_unit_files
 from tests.test_mission_service import FakeGitHubClient, mission_files
 
 
 @pytest.fixture
-async def bot(database):
-    """A duck-typed bot with real services over SQLite and fake GitHub."""
-    files = {**mission_files("OP-002", name="Operation Iron Rain", map="Livonia"),
-             **dict(KNOWLEDGE_FILES)}
-    github = FakeGitHubClient(files)
+async def bot(database, tmp_path):
+    """A duck-typed bot with real services over SQLite, fake GitHub for
+    missions, and a real (temporary) unit/ directory for knowledge."""
+    github = FakeGitHubClient(
+        mission_files("OP-002", name="Operation Iron Rain", map="Livonia")
+    )
     bot = SimpleNamespace(
         guild_service=GuildService(database),
         mission_service=MissionService(database, github),
-        knowledge_service=KnowledgeService(database, github),
+        knowledge_service=KnowledgeService(database, write_unit_files(tmp_path)),
         operation_service=OperationService(database),
         player_service=PlayerService(database),
         attendance_service=AttendanceService(database),
@@ -275,10 +277,12 @@ def test_personality_loads_from_file_and_falls_back(tmp_path):
     path = tmp_path / "personality.md"
     path.write_text("Be excellent.", encoding="utf-8")
     assert load_personality(str(path)) == "Be excellent."
+    # A missing file falls back to the shipped template (repo-relative).
     fallback = load_personality(str(tmp_path / "missing.md"))
-    assert "never invent" in fallback
+    template = Path("templates/unit/personality/personality.example.md")
+    assert fallback == template.read_text(encoding="utf-8").strip()
 
 
 def test_real_personality_file_present():
-    personality = load_personality("content/personality.md")
+    personality = load_personality("unit/personality/personality.md")
     assert "Grounding rules" in personality  # the real file, not the fallback

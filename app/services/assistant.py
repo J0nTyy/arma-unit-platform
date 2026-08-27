@@ -39,11 +39,14 @@ _FALLBACK_PERSONALITY = (
 )
 
 
+_PERSONALITY_TEMPLATE = "templates/unit/personality/personality.example.md"
+
+
 def load_personality(path: str) -> str:
-    """Personality lives in a content file so staff can tune it without
-    touching Python. The real file is private (gitignored); fresh clones
-    fall back to the shipped .example file, then to a safe built-in."""
-    for candidate in (path, path.replace(".md", ".example.md")):
+    """Personality lives in unit/personality/ so staff can tune it without
+    touching Python. The real file is private (gitignored); fresh installs
+    fall back to the shipped template, then to a safe built-in."""
+    for candidate in (path, _PERSONALITY_TEMPLATE):
         try:
             text = Path(candidate).read_text(encoding="utf-8").strip()
             if text:

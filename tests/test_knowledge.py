@@ -1,10 +1,10 @@
 """Knowledge parsing, validation, retrieval and sync."""
 
+from pathlib import Path
 from types import SimpleNamespace
 
 from app.knowledge import KnowledgeVisibility, parse_knowledge_document, search_documents
 from app.services.knowledge import KnowledgeService
-from tests.test_mission_service import FakeGitHubClient
 
 VALID = """---
 title: Mod Setup
@@ -103,6 +103,7 @@ def test_retrieval_no_results():
     assert search_documents(DOCS, "the a of", KnowledgeVisibility.STAFF) == []  # stopwords only
 
 
+# Paths are relative to the unit root: knowledge/** and lore/** are indexed.
 KNOWLEDGE_FILES = {
     "knowledge/unit.md": VALID.replace("Mod Setup", "Unit Overview")
     .replace("visibility: member", "visibility: public"),
@@ -111,16 +112,31 @@ KNOWLEDGE_FILES = {
     .replace("title: Mod Setup", "title: Staff Doc"),
     "knowledge/broken.md": "no frontmatter here",
     "knowledge/README.md": "# not indexed",
+    "lore/origins.md": VALID.replace("title: Mod Setup", "title: Unit Origins")
+    .replace("visibility: member", "visibility: public"),
+    "personality/personality.md": "never indexed — not a document dir",
 }
 
 
-async def test_knowledge_sync_indexes_and_reports_failures(database):
-    service = KnowledgeService(database, FakeGitHubClient(dict(KNOWLEDGE_FILES)))
+def write_unit_files(root: Path, files: dict[str, str] = KNOWLEDGE_FILES) -> Path:
+    """Materialize a fake unit/ directory for knowledge tests."""
+    for relative, content in files.items():
+        file = root / relative
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text(content, encoding="utf-8")
+    return root
+
+
+async def test_knowledge_sync_indexes_and_reports_failures(database, tmp_path):
+    service = KnowledgeService(database, write_unit_files(tmp_path))
     result = await service.sync()
-    assert result.indexed == 3
+    assert result.indexed == 4  # unit, mods, staff, lore/origins
     assert len(result.failures) == 1
     assert result.failures[0][0] == "knowledge/broken.md"
-    assert await service.document_count() == 3  # README never indexed
+    assert await service.document_count() == 4  # README + personality never indexed
+
+    # lore keeps its historical slug ("lore/<name>")
+    assert await service.get_document("lore/origins", KnowledgeVisibility.PUBLIC) is not None
 
     # member search can't see the staff doc; staff can
     member_hits = await service.search("staff doc setup", KnowledgeVisibility.MEMBER)
@@ -129,17 +145,23 @@ async def test_knowledge_sync_indexes_and_reports_failures(database):
     assert any(p.slug == "sop/staff" for p in staff_hits)
 
 
-async def test_knowledge_sync_removes_deleted(database):
-    github = FakeGitHubClient(dict(KNOWLEDGE_FILES))
-    service = KnowledgeService(database, github)
+async def test_knowledge_sync_removes_deleted(database, tmp_path):
+    root = write_unit_files(tmp_path)
+    service = KnowledgeService(database, root)
     await service.sync()
-    del github.files["knowledge/onboarding/mods.md"]
+    (root / "knowledge/onboarding/mods.md").unlink()
     result = await service.sync()
     assert result.removed == 1
 
 
-async def test_get_document_enforces_visibility(database):
-    service = KnowledgeService(database, FakeGitHubClient(dict(KNOWLEDGE_FILES)))
+async def test_get_document_enforces_visibility(database, tmp_path):
+    service = KnowledgeService(database, write_unit_files(tmp_path))
     await service.sync()
     assert await service.get_document("sop/staff", KnowledgeVisibility.MEMBER) is None
     assert await service.get_document("sop/staff", KnowledgeVisibility.STAFF) is not None
+
+
+async def test_missing_unit_directory_is_empty_not_fatal(database, tmp_path):
+    service = KnowledgeService(database, tmp_path / "does-not-exist")
+    result = await service.sync()
+    assert result.found == 0 and result.indexed == 0 and not result.failures

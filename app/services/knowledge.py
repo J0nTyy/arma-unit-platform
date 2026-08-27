@@ -1,25 +1,29 @@
 """Knowledge base business logic.
 
-Knowledge lives as Markdown files under ``knowledge/`` in the missions
-repository (GitHub = source of truth). Sync parses + validates every file
-into the database index; retrieval serves the AI assistant with
-visibility-filtered passages. Malformed files are reported, never fatal.
+Knowledge lives as local Markdown files in the unit configuration area
+(``unit/knowledge/`` and ``unit/lore/`` — private to this deployment, the
+source of truth). Sync parses + validates every file into the database
+index; retrieval serves the AI assistant with visibility-filtered passages.
+Malformed files are reported, never fatal.
+
+Paths are indexed relative to the unit root, so slugs look like
+``onboarding/mods`` (from ``unit/knowledge/onboarding/mods.md``) and
+``lore/origins`` (from ``unit/lore/origins.md``).
 """
 
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import Database
 from app.database.models.knowledge import KnowledgeDocument
 from app.database.repositories.knowledge import KnowledgeRepository
-from app.errors import DatabaseError, GitHubFileNotFoundError
-from app.integrations.github import GitHubClient
+from app.errors import DatabaseError
 from app.knowledge import (
     KnowledgeVisibility,
     Passage,
@@ -29,7 +33,9 @@ from app.knowledge import (
 
 log = logging.getLogger(__name__)
 
-_KNOWLEDGE_FILE_RE = re.compile(r"^knowledge/.+\.md$")
+# Subdirectories of the unit root that hold indexable documents. Lore is
+# knowledge too — it just lives in its own folder for humans.
+_DOCUMENT_DIRS = ("knowledge", "lore")
 
 
 @dataclass(frozen=True)
@@ -41,31 +47,37 @@ class KnowledgeSyncResult:
 
 
 class KnowledgeService:
-    def __init__(self, database: Database, github: GitHubClient) -> None:
+    def __init__(self, database: Database, unit_root: Path | str = "unit") -> None:
         self._database = database
-        self._github = github
+        self._unit_root = Path(unit_root)
+
+    def _document_paths(self) -> list[Path]:
+        paths: list[Path] = []
+        for directory in _DOCUMENT_DIRS:
+            base = self._unit_root / directory
+            if not base.is_dir():
+                continue
+            paths.extend(
+                f for f in base.rglob("*.md") if f.name.lower() != "readme.md"
+            )
+        return sorted(paths)
 
     async def sync(self) -> KnowledgeSyncResult:
-        """Rebuild the knowledge index from the repository."""
-        tree = await self._github.get_tree()
-        paths = sorted(
-            entry.path
-            for entry in tree
-            if entry.type == "blob"
-            and _KNOWLEDGE_FILE_RE.match(entry.path)
-            and not entry.path.endswith("README.md")
-        )
+        """Rebuild the knowledge index from the unit's local documents."""
+        files = self._document_paths()
         synced_at = datetime.now(timezone.utc)
         rows: list[dict] = []
         failures: list[tuple[str, str]] = []
-        for path in paths:
+        for file in files:
+            relative = file.relative_to(self._unit_root).as_posix()
             try:
-                content = await self._github.get_file(path)
-            except GitHubFileNotFoundError:
+                content = file.read_text(encoding="utf-8")
+            except OSError as exc:
+                failures.append((relative, f"unreadable: {exc.__class__.__name__}"))
                 continue
-            document = parse_knowledge_document(path, content)
+            document = parse_knowledge_document(relative, content)
             if not document.is_valid:
-                failures.append((path, document.errors[0]))
+                failures.append((relative, document.errors[0]))
                 continue
             rows.append(
                 {
@@ -75,7 +87,7 @@ class KnowledgeService:
                     "tags": document.tags,
                     "visibility": document.visibility.value,
                     "content": document.body,
-                    "source_path": path,
+                    "source_path": relative,
                     "synced_at": synced_at,
                 }
             )
@@ -90,7 +102,7 @@ class KnowledgeService:
             raise DatabaseError("knowledge index update failed") from exc
 
         result = KnowledgeSyncResult(
-            found=len(paths), indexed=len(rows), removed=removed, failures=tuple(failures)
+            found=len(files), indexed=len(rows), removed=removed, failures=tuple(failures)
         )
         log.info(
             "Knowledge sync: %d found, %d indexed, %d removed, %d failed",
