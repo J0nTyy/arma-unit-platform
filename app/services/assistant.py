@@ -14,6 +14,7 @@ durations and tool names).
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -38,6 +39,27 @@ _FALLBACK_PERSONALITY = (
     "only from tool results; if information is unavailable, say so plainly and "
     "never invent unit facts."
 )
+
+# The model imitates its own earlier messages (they come back through chat
+# context and conversation memory), so instructions alone can't fully kill
+# the AI-style dash habit — this deterministic pass rewrites dash-joined
+# clauses into plain texting punctuation. Bullet lines are left alone.
+_EMDASH_SPACED_RE = re.compile(r"\s+[—–]\s+")
+_EMDASH_TIGHT_RE = re.compile(r"(?<=\w)[—–](?=\w)")
+_HYPHEN_JOIN_RE = re.compile(r"(?<=[\w.!?)])\s+-\s+(?=\w)")
+
+
+def texting_polish(text: str) -> str:
+    lines = []
+    for line in text.split("\n"):
+        if line.lstrip().startswith(("-", "•", "*")):
+            lines.append(line)  # genuine bullet lists stay untouched
+            continue
+        line = _EMDASH_SPACED_RE.sub(", ", line)
+        line = _EMDASH_TIGHT_RE.sub(", ", line)
+        line = _HYPHEN_JOIN_RE.sub(", ", line)
+        lines.append(line)
+    return "\n".join(lines)
 
 # unit.yaml personality knobs -> style directives appended to the prompt.
 _HUMOUR_STYLE = {
@@ -176,6 +198,7 @@ class AssistantService:
         chat_context: str | None,
         question: str,
         style_examples: list[str] | None = None,
+        channel_id: int | None = None,
     ) -> str:
         now = datetime.now(timezone.utc)
         is_staff = context.level >= PermissionLevel.STAFF
@@ -210,17 +233,19 @@ class AssistantService:
                 )
 
         # Where are we talking? Staff channels may carry staff-level detail.
+        here = f"You are talking in the channel <#{channel_id}> RIGHT NOW. " if channel_id else ""
         if staff_channel and is_staff:
             blocks.append(
-                "## Location\nThis is a STAFF-ONLY channel: staff-level detail "
-                "(rosters with names, attendance specifics, admin guidance) is "
-                "appropriate here."
+                f"## Location\n{here}This is a STAFF-ONLY channel: staff-level "
+                "detail (rosters with names, attendance specifics, admin guidance) "
+                "is appropriate here."
             )
         else:
             blocks.append(
-                "## Location\nThis is a channel regular members can read. Do not "
-                "surface staff-only details here even if the requester is staff — "
-                "suggest the staff channel instead."
+                f"## Location\n{here}This is a channel regular members can read. "
+                "Do not surface staff-only details here even if the requester is "
+                "staff — suggest the staff channel instead. NEVER tell someone to "
+                "take a conversation to the channel you are already in."
             )
 
         # Server memory — things the unit told you before. Staff-visibility
@@ -261,6 +286,7 @@ class AssistantService:
         quoted: str | None = None,
         staff_channel: bool = False,
         style_examples: list[str] | None = None,
+        channel_id: int | None = None,
     ) -> str:
         question = question.strip()[:_QUESTION_CHAR_LIMIT]
         if not question:
@@ -272,7 +298,7 @@ class AssistantService:
         system = await self._system_prompt(
             context, configuration,
             staff_channel=staff_channel, chat_context=chat_context, question=question,
-            style_examples=style_examples,
+            style_examples=style_examples, channel_id=channel_id,
         )
         messages: list[dict] = [{"role": "system", "content": system}]
         messages += self._memory.get(context.guild_id, context.user_id)
@@ -301,6 +327,7 @@ class AssistantService:
         if not answer:
             log.warning("Assistant produced no final answer (tools used: %s)", tool_names)
             raise AIIntegrationError("no final answer from model")
+        answer = texting_polish(answer)
 
         log.info(
             "Assistant answered: user=%s level=%s duration=%.1fs tools=%s q_len=%d a_len=%d",
@@ -340,4 +367,4 @@ class AssistantService:
         text = (response.content or "").strip()
         if not text or "SKIP" in text[:12].upper():
             return None
-        return text[:300]
+        return texting_polish(text)[:300]

@@ -89,6 +89,7 @@ class AssistantCog(commands.Cog):
         chat_context: str | None = None,
         quoted: str | None = None,
         staff_channel: bool = False,
+        channel_id: int | None = None,
     ) -> str:
         service = self.bot.assistant_service
         if service is None:
@@ -101,6 +102,7 @@ class AssistantCog(commands.Cog):
             context, question,
             chat_context=chat_context, quoted=quoted, staff_channel=staff_channel,
             style_examples=self.bot.style_sampler.sample(member.guild.id),
+            channel_id=channel_id,
         )
 
     @app_commands.command(
@@ -118,6 +120,7 @@ class AssistantCog(commands.Cog):
             interaction.user, question,
             chat_context=chat_context,
             staff_channel=_is_staff_channel(interaction.channel),
+            channel_id=interaction.channel_id,
         )
         chunks = _chunk(f"> {question[:180]}\n\n{answer}")
         await interaction.followup.send(chunks[0])
@@ -193,6 +196,7 @@ class AssistantCog(commands.Cog):
                     message.author, question,
                     chat_context=chat_context, quoted=quoted,
                     staff_channel=_is_staff_channel(message.channel),
+                    channel_id=message.channel.id,
                 )
         except AppError as error:
             await message.reply(f"⚠️ {error.user_message}", mention_author=False)
