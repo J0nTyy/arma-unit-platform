@@ -91,6 +91,23 @@ _ROLE_SETTINGS = (
     ("developer_role_id", "Developer role"),
 )
 
+# Defaults for "Create recommended roles". These are recognition roles the
+# bot reads — they deliberately carry NO Discord permissions (admins decide
+# those). The bot stores role IDs, so renaming them later is always safe.
+DEFAULT_ROLE_NAMES = {
+    "staff_role_id": "Staff",
+    "mission_maker_role_id": "Mission Maker",
+    "trainer_role_id": "Trainer",
+    "developer_role_id": "Developer",
+}
+_ROLE_COLOURS = {
+    "staff_role_id": 0xE67E22,          # orange — visible in the member list
+    "mission_maker_role_id": 0x3498DB,  # blue
+    "trainer_role_id": 0x2ECC71,        # green
+    "developer_role_id": 0x9B59B6,      # purple
+}
+_HOISTED_ROLES = {"staff_role_id"}  # shown as its own section in the sidebar
+
 
 def invite_url(application_id: int) -> str:
     """Invite link including permissions needed for channel management."""
@@ -313,6 +330,44 @@ class SetupHubView(discord.ui.View):
         except Exception as error:  # noqa: BLE001
             await respond_error(interaction, error)
 
+    @discord.ui.button(
+        label="Create recommended roles", emoji="👥",
+        style=discord.ButtonStyle.primary, row=3,
+    )
+    async def create_roles(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        try:
+            await ensure_level(interaction, PermissionLevel.ADMIN)
+            configuration = await self._bot.guild_service.get_configuration(self._guild.id)
+            plan = build_role_plan(self._guild, configuration)
+            if not plan.to_create and not plan.to_reuse:
+                await interaction.response.send_message(
+                    "✅ Every role is already configured — nothing to create.",
+                    ephemeral=True,
+                )
+                return
+            lines = []
+            if plan.to_create:
+                lines.append(
+                    "**Will create** (no Discord permissions, unassigned):\n"
+                    + "\n".join(f"• @{name}" for _, name in plan.to_create)
+                )
+            if plan.to_reuse:
+                lines.append(
+                    "**Will reuse existing:**\n"
+                    + "\n".join(f"• <@&{role.id}>" for _, role in plan.to_reuse)
+                )
+            lines.append(
+                "*Prefer your own role names? Cancel and pick them per-setting in the "
+                "dropdown instead. Nothing is created until you confirm.*"
+            )
+            await interaction.response.send_message(
+                "👥 **Create recommended roles**\n\n" + "\n\n".join(lines),
+                view=ConfirmRoleCreationView(self._bot, self._guild, plan),
+                ephemeral=True,
+            )
+        except Exception as error:  # noqa: BLE001
+            await respond_error(interaction, error)
+
     @discord.ui.button(label="Done", emoji="✔️", style=discord.ButtonStyle.secondary, row=3)
     async def done(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
         self.stop()
@@ -349,6 +404,95 @@ class TimezoneModal(discord.ui.Modal, title="Unit timezone"):
             await self._hub._save(interaction, timezone=self.tz_input.value)
         except Exception as error:  # noqa: BLE001
             await respond_error(interaction, error)
+
+
+class RolePlan:
+    def __init__(self) -> None:
+        self.to_create: list[tuple[str, str]] = []  # (setting key, role name)
+        self.to_reuse: list[tuple[str, discord.Role]] = []  # (setting key, role)
+
+
+def build_role_plan(guild, configuration: GuildConfiguration | None) -> RolePlan:
+    """Decide which roles to create vs reuse — never duplicates.
+
+    Reuse matches by (case-insensitive) default name; already-configured
+    roles that still exist are skipped entirely. Renames never matter after
+    setup because only role IDs are stored.
+    """
+    plan = RolePlan()
+    for key, name in DEFAULT_ROLE_NAMES.items():
+        configured_id = getattr(configuration, key, None) if configuration else None
+        if configured_id and guild.get_role(configured_id) is not None:
+            continue  # configured and the role still exists — nothing to do
+        existing = next(
+            (role for role in guild.roles if role.name.lower() == name.lower()), None
+        )
+        if existing is not None:
+            plan.to_reuse.append((key, existing))
+        else:
+            plan.to_create.append((key, name))
+    return plan
+
+
+class ConfirmRoleCreationView(discord.ui.View):
+    def __init__(self, bot: "UnitBot", guild: discord.Guild, plan: RolePlan) -> None:
+        super().__init__(timeout=300)
+        self._bot = bot
+        self._guild = guild
+        self._plan = plan
+
+    @discord.ui.button(label="Confirm", emoji="✅", style=discord.ButtonStyle.success)
+    async def confirm(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        try:
+            await ensure_level(interaction, PermissionLevel.ADMIN)
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            guild = self._guild
+            updates: dict[str, int] = {key: role.id for key, role in self._plan.to_reuse}
+            created: list[str] = []
+            try:
+                for key, name in self._plan.to_create:
+                    role = await guild.create_role(
+                        name=name,
+                        colour=discord.Colour(_ROLE_COLOURS.get(key, 0)),
+                        hoist=key in _HOISTED_ROLES,
+                        mentionable=False,
+                        permissions=discord.Permissions.none(),
+                        reason="Unit bot setup",
+                    )
+                    updates[key] = role.id
+                    created.append(role.mention)
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    "⚠️ I don't have permission to create roles. Re-invite me with the "
+                    f"updated permissions, then try again:\n{invite_url(self._bot.settings.discord_application_id)}",
+                    ephemeral=True,
+                )
+                return
+            if updates:
+                await self._bot.guild_service.update_settings(guild.id, guild.name, **updates)
+            self.stop()
+            summary = []
+            if created:
+                summary.append("Created: " + ", ".join(created))
+            if self._plan.to_reuse:
+                summary.append(
+                    "Reused: " + ", ".join(f"<@&{r.id}>" for _, r in self._plan.to_reuse)
+                )
+            await interaction.followup.send(
+                "✅ Roles configured. " + " · ".join(summary) + "\n"
+                "-# They carry no Discord permissions and aren't assigned to anyone yet — "
+                "hand them out in Server Settings → Members. Rename them freely: the bot "
+                "tracks role IDs, not names.",
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        except Exception as error:  # noqa: BLE001
+            await respond_error(interaction, error)
+
+    @discord.ui.button(label="Cancel", emoji="✖️", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        self.stop()
+        await interaction.response.edit_message(content="Role creation cancelled.", view=None)
 
 
 class ChannelPlan:

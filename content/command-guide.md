@@ -38,8 +38,12 @@
 
 - **First-time setup:** `/unit setup` — pick a setting from the dropdown
   (channels, roles, timezone, reminders, chatter). "Create recommended
-  channels" builds the whole channel set with correct permissions after a
-  confirmation step. Set the Trainer role here to enable /training grants.
+  channels" builds the whole channel set with correct permissions, and
+  "Create recommended roles" creates Staff / Mission Maker / Trainer /
+  Developer roles (no Discord permissions, unassigned) — both after a
+  confirmation step. Prefer your own role names? Pick existing roles from
+  the dropdown instead. Renaming roles later is always safe: the bot tracks
+  IDs, not names. Set the Trainer role to enable /training grants.
 - **Content sync:** `/unit sync` after any push to the missions repo —
   refreshes missions, knowledge, and published posts.
 - **Publish a mission:** `/mission publish` → pick mission → preview →
