@@ -24,6 +24,7 @@ from app.bot.permissions import PermissionLevel
 from app.errors import AIIntegrationError, RateLimitedError
 from app.integrations.ai import ChatClient
 from app.services.assistant_tools import ToolContext, ToolRegistry
+from app.services.unit_config import PersonalitySettings
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +38,47 @@ _FALLBACK_PERSONALITY = (
     "only from tool results; if information is unavailable, say so plainly and "
     "never invent unit facts."
 )
+
+# unit.yaml personality knobs -> style directives appended to the prompt.
+_HUMOUR_STYLE = {
+    "none": "No jokes — keep every reply straight.",
+    "low": "Default to straight answers; at most a rare, light remark.",
+    "medium": "Dry, understated humour when the moment genuinely suits it — never forced.",
+    "high": (
+        "Dry, dark, occasionally wicked humour is welcome when the moment "
+        "invites it — still never forced, and never mocking members."
+    ),
+}
+_FORMALITY_STYLE = {
+    "casual": "Relaxed, squadmate tone.",
+    "balanced": "Professional but approachable.",
+    "formal": "Crisp and formal throughout.",
+}
+_LENGTH_STYLE = {
+    "short": "One to three sentences unless genuinely listing items.",
+    "medium": "A short paragraph per answer is fine.",
+    "long": "Detailed answers are welcome when the question warrants them.",
+}
+_SERIOUS_RULE = (
+    "Serious topics — safety, harassment, disputes, discipline, personal "
+    "struggles — are always answered straight and humour-free, regardless of "
+    "the humour setting."
+)
+
+
+def style_directives(style: PersonalitySettings) -> str:
+    lines = [
+        _HUMOUR_STYLE[style.humour],
+        _FORMALITY_STYLE[style.formality],
+        _LENGTH_STYLE[style.response_length],
+        "Military phrasing in moderation is fine."
+        if style.tactical_flavor
+        else "Avoid military jargon — plain language.",
+        _SERIOUS_RULE,
+    ]
+    return "## Style settings (unit configuration)\n" + "\n".join(
+        f"- {line}" for line in lines
+    )
 
 
 _PERSONALITY_TEMPLATE = "templates/unit/personality/personality.example.md"
@@ -116,10 +158,12 @@ class AssistantService:
         *,
         personality: str,
         requests_per_minute: int = 4,
+        style: PersonalitySettings | None = None,
     ) -> None:
         self._client = client
         self._registry = registry
         self._personality = personality
+        self._style = style or PersonalitySettings()
         self._rate_limiter = RateLimiter(requests_per_minute)
         self._memory = ConversationMemory()
 
@@ -143,7 +187,11 @@ class AssistantService:
                 facts.append(f"Unit name: {configuration.unit_name or configuration.guild_name}.")
             if configuration.timezone:
                 facts.append(f"Unit timezone: {configuration.timezone}.")
-        blocks = [self._personality, "## Current context\n" + "\n".join(facts)]
+        blocks = [
+            self._personality,
+            style_directives(self._style),
+            "## Current context\n" + "\n".join(facts),
+        ]
 
         # Channel directory — so answers can link channels properly (<#id>).
         if configuration is not None:
@@ -259,6 +307,8 @@ class AssistantService:
         """
         system = (
             self._personality
+            + "\n\n"
+            + style_directives(self._style)
             + "\n\n## Task: ambient chatter\n"
             "You're reading the recent chat below. Write ONE short message (max "
             "2 sentences) as yourself, reacting naturally: banter or a wry "

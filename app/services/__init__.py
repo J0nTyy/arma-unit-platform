@@ -11,6 +11,7 @@ from app.services.guilds import GuildService
 from app.services.players import PlayerService
 from app.services.knowledge import KnowledgeService, KnowledgeSyncResult
 from app.services.memories import MemoryService
+from app.services.message_catalog import MessageCatalog
 from app.services.missions import MissionService, SyncFailure, SyncResult
 from app.services.operations import (
     AttendanceOutcome,
@@ -26,7 +27,11 @@ from app.services.server_data import (
     sanitize_server_name,
 )
 from app.services.status import StatusReport, StatusService
-from app.services.unit_config import UnitConfigService, UnitConfigStatus
+from app.services.unit_config import (
+    PersonalitySettings,
+    UnitConfigService,
+    UnitConfigStatus,
+)
 
 __all__ = [
     "AssistantService",
@@ -42,8 +47,10 @@ __all__ = [
     "KnowledgeService",
     "KnowledgeSyncResult",
     "MemoryService",
+    "MessageCatalog",
     "MissionService",
     "OperationService",
+    "PersonalitySettings",
     "ProfileSummary",
     "PublicationService",
     "Roster",

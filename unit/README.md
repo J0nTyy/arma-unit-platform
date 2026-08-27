@@ -8,13 +8,13 @@ committed.
 On first run the bot copies starting points here from `templates/unit/`
 (existing files are never overwritten).
 
-| Path                         | What it is                                             | Edit it?  |
-| ---------------------------- | ------------------------------------------------------ | --------- |
-| `config/unit.yaml`           | Unit settings + `schema_version`                       | Yes       |
-| `lore/*.md`                  | Canonical unit lore (indexed, run `/unit sync` after)  | Yes       |
-| `knowledge/**/*.md`          | Unit knowledge base (indexed, run `/unit sync` after)  | Yes       |
-| `personality/personality.md` | The AI assistant's persona                             | Yes       |
-| `personality/greeting.md`    | New-member welcome template                            | Yes       |
+| Path                         | What it is                                              | Edit it?  |
+| ---------------------------- | ------------------------------------------------------- | --------- |
+| `config/unit.yaml`           | Unit settings, `schema_version`, personality style knobs | Yes      |
+| `lore/*.md`                  | Canonical unit lore (indexed, run `/unit sync` after)   | Yes       |
+| `knowledge/**/*.md`          | Unit knowledge base (indexed, run `/unit sync` after)   | Yes       |
+| `personality/personality.md` | The AI assistant's persona                              | Yes       |
+| `messages/*.yaml`            | Greeting/announcement variants (overrides the defaults) | Yes       |
 
 Quick answers:
 

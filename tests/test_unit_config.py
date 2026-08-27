@@ -2,7 +2,34 @@
 
 from pathlib import Path
 
-from app.services.unit_config import UnitConfigService
+from app.services.unit_config import PersonalitySettings, UnitConfigService
+
+
+def test_personality_settings_defaults_and_lenient_parsing():
+    assert PersonalitySettings.from_mapping(None) == PersonalitySettings()
+    assert PersonalitySettings.from_mapping("nonsense") == PersonalitySettings()
+
+    parsed = PersonalitySettings.from_mapping(
+        {"humour": "HIGH", "formality": "formal", "response_length": "long",
+         "tactical_flavor": False}
+    )
+    assert parsed.humour == "high" and parsed.formality == "formal"
+    assert parsed.response_length == "long" and parsed.tactical_flavor is False
+
+    # Invalid values fall back to defaults instead of crashing the bot.
+    broken = PersonalitySettings.from_mapping({"humour": "sarcastic", "formality": 3})
+    assert broken.humour == "medium" and broken.formality == "balanced"
+
+
+def test_personality_settings_read_from_unit_yaml(tmp_path):
+    service = UnitConfigService(root=tmp_path / "unit", templates=tmp_path / "missing")
+    assert service.personality_settings() == PersonalitySettings()  # no file yet
+
+    service.config_file.parent.mkdir(parents=True)
+    service.config_file.write_text(
+        "schema_version: 1\npersonality:\n  humour: none\n", encoding="utf-8"
+    )
+    assert service.personality_settings().humour == "none"
 
 
 def make_templates(tmp_path: Path) -> Path:
@@ -76,5 +103,8 @@ def test_repo_templates_initialize_a_working_unit(tmp_path):
     assert created  # something was copied
     assert service.config_file.exists()
     assert service.personality_file.exists()
-    assert service.greeting_file.exists()
+    assert (service.messages_dir / "README.md").exists()
     assert service.schema_version() == 1
+    # The shipped template config parses into valid personality settings.
+    settings = service.personality_settings()
+    assert settings.humour == "medium" and settings.tactical_flavor is True

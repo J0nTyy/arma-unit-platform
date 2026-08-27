@@ -1,0 +1,56 @@
+# New-member greetings. One is picked per join (never the same twice in a
+# row). Placeholders: {member} {unit_name} {channels}
+# `witty` variants are only used when unit.yaml personality.humour is
+# medium or high. Override per-unit in unit/messages/greetings.yaml.
+
+member_greeting:
+  variants:
+    - |-
+      Welcome to **{unit_name}**, {member}.
+
+      Your profile is registered. Quick orientation:
+      {channels}
+
+      Three things to knock out first:
+      1. Get the modset installed — ask me `what mods do I need?` if unsure
+      2. Run `/profile` and set your role preferences
+      3. Check `/operations` and sign up for the next one
+
+      If you're unsure where something belongs, ask me — that's what I'm for.
+    - |-
+      {member} — welcome aboard **{unit_name}**.
+
+      The essentials:
+      {channels}
+
+      Start with the mod setup, then `/profile` to tell us how you like to
+      play, then hit **Attend** on an operation post when you're ready.
+      Questions go to me — @mention or `/ask`, no question too basic.
+    - |-
+      Welcome, {member}. You're on the books at **{unit_name}**.
+
+      Where things live:
+      {channels}
+
+      First steps: mods installed, `/profile` filled in, and a sign-up on
+      the next operation. Ask me anything along the way.
+  witty:
+    - |-
+      {member}, welcome to **{unit_name}**. Your paperwork went through —
+      that was the hard part.
+
+      The map of the place:
+      {channels}
+
+      Get the mods installed, set up `/profile`, and sign up for an op.
+      Ask me if you get lost. It's considerably less paperwork than asking
+      everyone else.
+    - |-
+      Welcome to **{unit_name}**, {member}. You're now officially someone
+      else's problem — mostly mine.
+
+      Orientation:
+      {channels}
+
+      Mods first, `/profile` second, first operation third. I answer
+      questions at all hours; I'm paid in electricity.

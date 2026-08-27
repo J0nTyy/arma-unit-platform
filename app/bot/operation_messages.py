@@ -87,6 +87,8 @@ async def announce_operation(bot: "UnitBot", operation: Operation, event: str) -
         if operation.channel_id and operation.message_id
         else ""
     )
+    # The factual line is fixed; a varied flavor line closes the message
+    # (witty variants only when the unit's humour setting allows).
     texts = {
         "published": (
             f"📣 @everyone **New operation: {operation.name}** — <t:{unix}:F> (<t:{unix}:R>)\n"
@@ -101,6 +103,9 @@ async def announce_operation(bot: "UnitBot", operation: Operation, event: str) -
         ),
     }
     text = texts[event]
+    tail = bot.messages.pick(f"announce_{event}_tail", fallback="")
+    if tail:
+        text = f"{text}\n{tail}"
 
     guild = bot.get_guild(operation.guild_id)
     general_id = configuration.general_channel_id

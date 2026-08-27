@@ -175,7 +175,12 @@ class SchedulerEvents(commands.Cog):
                 mentions.append(f"+{extra} more")
             lines.append("🟢 " + " ".join(mentions))
         elif reminder.kind == "24h":
-            lines.append("No confirmed attendees yet — hit 🟢 **Attend** on the post above!")
+            lines.append(
+                self.bot.messages.pick(
+                    "reminder_no_signups",
+                    fallback="No confirmed attendees yet — hit 🟢 **Attend** on the post above!",
+                )
+            )
 
         reference = None
         if operation.message_id:

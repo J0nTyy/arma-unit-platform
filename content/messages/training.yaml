@@ -1,0 +1,11 @@
+# Public congratulations when a certification is granted.
+# Placeholders: {member} {certification} {trainer}
+
+cert_granted_public:
+  variants:
+    - "🎓 {member} just earned **{certification}** — trained by {trainer}."
+    - "🎓 New qualification on the books: {member} is now certified **{certification}** (trainer: {trainer})."
+    - "🎓 {member} completed **{certification}** training under {trainer}. Put it to work."
+  witty:
+    - "🎓 {member} passed **{certification}**. {trainer} signed the paperwork, so direct all complaints there."
+    - "🎓 {member} is now **{certification}**-certified. Act surprised when it matters."

@@ -1,0 +1,34 @@
+# Flavor lines appended to operation announcements and reminders. The
+# factual part of every announcement (name, time, links) is fixed —
+# these only vary the closing line. `witty` needs humour medium/high.
+
+announce_published_tail:
+  variants:
+    - "Read the briefing before op night — it answers most questions."
+    - "Check your modset early; op night is a bad time to find out."
+    - "See you on the line."
+  witty:
+    - "Attendance is voluntary. Glory is not guaranteed."
+    - "The briefing is short and the enemy won't read it. Advantage: you."
+
+announce_cancelled_tail:
+  variants:
+    - "Stand down — the next window will be announced here."
+    - "Watch this channel for the replacement slot."
+  witty:
+    - "The enemy has been granted a temporary reprieve."
+    - "Stand down. The paperwork, sadly, survives."
+
+announce_rescheduled_tail:
+  variants:
+    - "Same operation, new window — update your attendance."
+    - "Adjust your calendars and re-confirm on the post."
+  witty:
+    - "Time travel stays classified, so update your attendance instead."
+
+reminder_no_signups:
+  variants:
+    - "No confirmed attendees yet — hit 🟢 **Attend** on the post above!"
+    - "The roster is still empty — 🟢 **Attend** above if you're in."
+  witty:
+    - "Zero sign-ups so far. The operation will not run itself, tempting as that sounds."

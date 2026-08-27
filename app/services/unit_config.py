@@ -31,6 +31,44 @@ log = logging.getLogger(__name__)
 
 UNIT_SCHEMA_VERSION = 1
 
+_HUMOUR_LEVELS = ("none", "low", "medium", "high")
+_FORMALITY_LEVELS = ("casual", "balanced", "formal")
+_LENGTHS = ("short", "medium", "long")
+
+
+@dataclass(frozen=True)
+class PersonalitySettings:
+    """Style knobs from unit.yaml `personality:` — how the bot talks,
+    without editing the personality prose itself."""
+
+    humour: str = "medium"          # none | low | medium | high
+    formality: str = "balanced"     # casual | balanced | formal
+    response_length: str = "short"  # short | medium | long
+    tactical_flavor: bool = True    # military seasoning in wording
+
+    @classmethod
+    def from_mapping(cls, raw: object) -> "PersonalitySettings":
+        """Parse leniently: unknown/invalid values fall back to defaults."""
+        if not isinstance(raw, dict):
+            return cls()
+
+        def choose(key: str, allowed: tuple[str, ...], default: str) -> str:
+            value = str(raw.get(key, default)).strip().lower()
+            if value not in allowed:
+                log.warning(
+                    "unit.yaml personality.%s=%r is not one of %s — using %r",
+                    key, raw.get(key), "/".join(allowed), default,
+                )
+                return default
+            return value
+
+        return cls(
+            humour=choose("humour", _HUMOUR_LEVELS, cls.humour),
+            formality=choose("formality", _FORMALITY_LEVELS, cls.formality),
+            response_length=choose("response_length", _LENGTHS, cls.response_length),
+            tactical_flavor=bool(raw.get("tactical_flavor", cls.tactical_flavor)),
+        )
+
 
 @dataclass(frozen=True)
 class UnitConfigStatus:
@@ -59,8 +97,9 @@ class UnitConfigService:
         return self.root / "personality" / "personality.md"
 
     @property
-    def greeting_file(self) -> Path:
-        return self.root / "personality" / "greeting.md"
+    def messages_dir(self) -> Path:
+        """Optional per-unit message-variant overrides (unit/messages/*.yaml)."""
+        return self.root / "messages"
 
     @property
     def lore_dir(self) -> Path:
@@ -72,9 +111,6 @@ class UnitConfigService:
 
     def personality_template(self) -> Path:
         return self._templates / "personality" / "personality.example.md"
-
-    def greeting_template(self) -> Path:
-        return self._templates / "personality" / "greeting.example.md"
 
     # --- first-run initialization ---------------------------------------------
 
@@ -103,14 +139,20 @@ class UnitConfigService:
 
     # --- inspection -------------------------------------------------------------
 
-    def schema_version(self) -> int | None:
+    def load_config(self) -> dict:
+        """unit/config/unit.yaml as a dict; {} when missing or malformed."""
         try:
             config = yaml.safe_load(self.config_file.read_text(encoding="utf-8"))
         except (OSError, yaml.YAMLError):
-            return None
-        if isinstance(config, dict) and isinstance(config.get("schema_version"), int):
-            return config["schema_version"]
-        return None
+            return {}
+        return config if isinstance(config, dict) else {}
+
+    def schema_version(self) -> int | None:
+        version = self.load_config().get("schema_version")
+        return version if isinstance(version, int) else None
+
+    def personality_settings(self) -> PersonalitySettings:
+        return PersonalitySettings.from_mapping(self.load_config().get("personality"))
 
     def status(self) -> UnitConfigStatus:
         def markdown_count(directory: Path) -> int:

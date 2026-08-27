@@ -1,0 +1,9 @@
+# The reply when someone @mentions the bot with no actual question.
+
+ask_prompt:
+  variants:
+    - "Ask me anything about the unit — missions, operations, rules, getting started."
+    - "You rang? I cover missions, operations, certs, and how anything here works."
+    - "I'm listening — ask about missions, ops, rules, or your profile."
+  witty:
+    - "Yes? I answer questions about missions, ops and rules. Mind reading is a different department."

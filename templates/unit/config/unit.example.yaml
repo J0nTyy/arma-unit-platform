@@ -11,3 +11,21 @@ schema_version: 1
 # Optional display name used in documents and exports. Leave blank to use
 # the name configured in Discord via /unit setup.
 unit_name: ""
+
+# --- Personality style (how the bot talks) -----------------------------------
+# The personality PROSE lives in unit/personality/personality.md; these knobs
+# tune its style without editing that file. Applied after a bot restart.
+personality:
+  # none  = every reply straight, no jokes
+  # low   = a rare light remark, defaults to straight answers
+  # medium= dry, understated humour when the moment suits (default)
+  # high  = dry/dark/wicked humour welcome when the moment invites it
+  # Serious topics (safety, harassment, discipline, personal struggles)
+  # are ALWAYS answered straight, regardless of this setting.
+  humour: medium
+  # casual | balanced | formal
+  formality: balanced
+  # short | medium | long — how much the assistant writes per answer
+  response_length: short
+  # true = military phrasing in moderation; false = plain language
+  tactical_flavor: true

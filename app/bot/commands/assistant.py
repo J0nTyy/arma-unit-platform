@@ -154,7 +154,10 @@ class AssistantCog(commands.Cog):
         question = re.sub(rf"<@!?{self.bot.user.id}>", "", message.content).strip()
         if not question and not referenced:
             await message.reply(
-                "Ask me anything about the unit — missions, ops, rules, getting started. o7",
+                self.bot.messages.pick(
+                    "ask_prompt",
+                    fallback="Ask me anything about the unit — missions, ops, rules, getting started.",
+                ),
                 mention_author=False,
             )
             return

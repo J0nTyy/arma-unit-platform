@@ -174,8 +174,13 @@ class TrainingCog(commands.Cog):
         if channel is not None:
             try:
                 await channel.send(
-                    f"🎓 {member.mention} just earned **{QUALIFICATIONS[cert]}** — "
-                    f"trained by {interaction.user.display_name}. o7"
+                    self.bot.messages.pick(
+                        "cert_granted_public",
+                        fallback="🎓 {member} just earned **{certification}** — trained by {trainer}.",
+                        member=member.mention,
+                        certification=QUALIFICATIONS[cert],
+                        trainer=interaction.user.display_name,
+                    )
                 )
             except discord.HTTPException:
                 pass

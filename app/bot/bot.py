@@ -25,6 +25,7 @@ from app.services import (
     GuildService,
     KnowledgeService,
     MemoryService,
+    MessageCatalog,
     MissionService,
     OperationService,
     PlayerService,
@@ -94,6 +95,13 @@ class UnitBot(commands.Bot):
         self.knowledge_service = KnowledgeService(database, self.unit_config.root)
         # Human-readable exports/snapshots into each server's data directory.
         self.data_export = DataExportService(database)
+        # Style knobs (humour/formality/length) from unit.yaml drive both the
+        # AI's voice and which message variants are eligible.
+        self.personality_settings = self.unit_config.personality_settings()
+        self.messages = MessageCatalog(
+            override_dir=self.unit_config.messages_dir,
+            humour=self.personality_settings.humour,
+        )
 
         # Mission repository integration is optional; /mission commands explain
         # the required setup when it is not configured.
@@ -144,6 +152,7 @@ class UnitBot(commands.Bot):
                 build_default_registry(),
                 personality=load_personality(settings.ai_personality_file),
                 requests_per_minute=settings.ai_requests_per_minute,
+                style=self.personality_settings,
             )
             log.info(
                 "Unit assistant enabled: provider=%s model=%s",

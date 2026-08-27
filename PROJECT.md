@@ -431,14 +431,29 @@ permission level (orthogonal to the staff ladder).
 ### The editable brain (`unit/`)
 
 `unit/personality/personality.md` (voice, reply types, few-shot examples,
-grounding rules — annotated with editing comments),
-`unit/personality/greeting.md` (new-member welcome, placeholders
-`{member}/{unit_name}/{channels}`), `unit/lore/` + `unit/knowledge/` (the
-indexed knowledge base), and `content/command-guide.md` (generic command
-how-tos; below the STAFF-ONLY marker only staff see it via the
-`get_command_guide` tool). Staff guides: `unit/README.md` and
-`content/README.md`. Restart applies personality changes; `/unit sync`
-applies knowledge changes.
+grounding rules — annotated with editing comments), `unit/config/unit.yaml`
+`personality:` knobs (humour none/low/medium/high, formality, response
+length, tactical flavor — parsed by `PersonalitySettings`, appended to the
+AI prompt as style directives), `unit/messages/*.yaml` (per-unit overrides
+for the varied messages), `unit/lore/` + `unit/knowledge/` (the indexed
+knowledge base), and `content/command-guide.md` (generic command how-tos;
+below the STAFF-ONLY marker only staff see it via the `get_command_guide`
+tool). Staff guides: `unit/README.md` and `content/README.md`. Restart
+applies personality/message changes; `/unit sync` applies knowledge changes.
+
+### Message variation (Pre-Phase 6B)
+
+`MessageCatalog` (`app/services/message_catalog.py`) serves varied
+bot-authored messages from YAML packs: `content/messages/*.yaml` (shipped
+defaults) overridden per-key by `unit/messages/*.yaml`. Each key has
+`variants` plus optional `witty` extras that only join the pool at humour
+`medium`/`high`; picks never repeat the previous variant for a key.
+Wired call sites: new-member greetings, operation announcement flavor
+tails (published/cancelled/rescheduled), the empty-roster reminder nudge,
+public cert congratulations, and the empty-@mention prompt. Serious
+messages (errors, permission denials) are deliberately deterministic and
+stay out of the catalog. Tone rules are enforced by tests: no salute
+spam ("o7"/🫡) anywhere in shipped packs or app code.
 
 ## Data architecture (Pre-Phase 6A)
 

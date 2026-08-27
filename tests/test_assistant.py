@@ -209,6 +209,22 @@ def tool_call_response(name, **arguments):
     )
 
 
+async def test_style_directives_follow_unit_settings(bot):
+    from app.services.unit_config import PersonalitySettings
+
+    client = FakeAIChatClient([AIResponse(content="ok")])
+    service = AssistantService(
+        client, REGISTRY, personality="Persona.",
+        style=PersonalitySettings(humour="none", tactical_flavor=False),
+    )
+    await service.ask(context_for(bot), "hello")
+    system = client.calls[0][0]["content"]
+    assert "No jokes" in system
+    assert "Avoid military jargon" in system
+    # The serious-topics guard is always present, whatever the humour level.
+    assert "harassment" in system
+
+
 async def test_ask_runs_tools_and_returns_grounded_answer(bot):
     client = FakeAIChatClient([
         tool_call_response("search_missions", query="iron rain"),

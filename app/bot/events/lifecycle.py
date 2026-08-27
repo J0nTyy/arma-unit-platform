@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import discord
@@ -16,11 +15,9 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-_GREETING_FILE = "unit/personality/greeting.md"
-_GREETING_TEMPLATE = "templates/unit/personality/greeting.example.md"
 _GREETING_FALLBACK = (
     "👋 Welcome to **{unit_name}**, {member}!\n\n{channels}\n\n"
-    "Run `/help` to see what I can do, and `/profile` to set up your profile. o7"
+    "Run `/help` to see what I can do, and `/profile` to set up your profile."
 )
 
 # (config attribute, emoji, what it's for) — only configured ones are shown.
@@ -32,20 +29,6 @@ _GREETING_CHANNELS = (
 )
 
 
-def _load_greeting_template() -> str:
-    """Staff-editable greeting (unit/personality/greeting.md, private);
-    falls back to the shipped template, then a built-in.
-
-    Placeholders: {member} {unit_name} {channels}
-    """
-    for candidate in (_GREETING_FILE, _GREETING_TEMPLATE):
-        try:
-            text = Path(candidate).read_text(encoding="utf-8").strip()
-            if text:
-                return text
-        except OSError:
-            continue
-    return _GREETING_FALLBACK
 
 
 class LifecycleEvents(commands.Cog):
@@ -124,7 +107,11 @@ class LifecycleEvents(commands.Cog):
             for key, emoji, purpose in _GREETING_CHANNELS
             if getattr(configuration, key)
         ]
-        text = _load_greeting_template().format(
+        # Varied greeting from the message catalog (unit override wins);
+        # never the same variant twice in a row.
+        text = self.bot.messages.pick(
+            "member_greeting",
+            fallback=_GREETING_FALLBACK,
             member=member.mention,
             unit_name=configuration.unit_name or member.guild.name,
             channels="\n".join(channel_lines) or "Take a look around the channels!",

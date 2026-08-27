@@ -157,9 +157,11 @@ assistant.
 
 When someone joins, the bot creates their profile automatically and posts a
 welcome in the recruitment channel (falling back to general) pointing them
-at the right channels. Staff can edit the greeting text at
-`unit/personality/greeting.md` (placeholders: `{member}`, `{unit_name}`,
-`{channels}`) — changes apply after a bot restart.
+at the right channels. Greetings are **varied** — the bot rotates between
+several templates and never repeats the previous one. Staff edit the
+variants in `unit/messages/greetings.yaml` (placeholders: `{member}`,
+`{unit_name}`, `{channels}`; `witty` variants only fire when the humour
+setting allows) — changes apply after a bot restart.
 
 ---
 
@@ -182,6 +184,8 @@ instructions are only ever shown to staff.
 | Task | How |
 | --- | --- |
 | Change the personality/voice | edit `unit/personality/personality.md`, then restart the bot |
+| Tune humour/formality/length | `unit/config/unit.yaml` → `personality:` section, then restart |
+| Re-voice greetings & announcements | `unit/messages/*.yaml` (see its README), then restart |
 | Teach it unit knowledge/lore | add files under `unit/knowledge/` or `unit/lore/`, then `/unit sync` |
 | Review its memory | `/unit memories` (delete from the dropdown) |
 | Check its health | `/unit diagnostics` — provider, model, knowledge doc count |
