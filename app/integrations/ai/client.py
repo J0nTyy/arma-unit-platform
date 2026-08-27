@@ -51,9 +51,14 @@ class AIChatClient:
         base_url: str | None = None,
         max_output_tokens: int = 700,
         timeout: float = 45.0,
+        reasoning_effort: str | None = None,
     ) -> None:
         self.model = model
         self._max_output_tokens = max_output_tokens
+        # Caps hidden "thinking" spend on reasoning models (gpt-5 family).
+        # None = don't send the parameter (required for providers/models that
+        # would reject it).
+        self._reasoning_effort = reasoning_effort
         self._client = openai.AsyncOpenAI(
             api_key=api_key, base_url=base_url, timeout=timeout, max_retries=1
         )
@@ -72,6 +77,8 @@ class AIChatClient:
             "messages": messages,
             "max_completion_tokens": self._max_output_tokens,
         }
+        if self._reasoning_effort:
+            kwargs["reasoning_effort"] = self._reasoning_effort
         if tools:
             kwargs["tools"] = tools
         try:

@@ -20,6 +20,7 @@ ALL_ENV_VARS = [
     "AI_PROVIDER",
     "AI_MODEL",
     "AI_BASE_URL",
+    "AI_REASONING_EFFORT",
     "AI_MAX_OUTPUT_TOKENS",
     "AI_REQUESTS_PER_MINUTE",
 ]
@@ -121,6 +122,11 @@ def test_ai_provider_resolution(clean_env):
     assert settings.ai_configured is True
     assert settings.resolved_ai_model == "gpt-5-mini"
     assert settings.resolved_ai_base_url is None
+    # Reasoning effort defaults to "low" on openai only; explicit value wins.
+    assert settings.resolved_ai_reasoning_effort == "low"
+    clean_env.setenv("AI_REASONING_EFFORT", "medium")
+    assert load_settings(env_file=None).resolved_ai_reasoning_effort == "medium"
+    clean_env.setenv("AI_REASONING_EFFORT", "")
 
     clean_env.setenv("AI_PROVIDER", "gemini")
     clean_env.setenv("GEMINI_API_KEY", "g-test")
@@ -129,6 +135,7 @@ def test_ai_provider_resolution(clean_env):
     assert settings.resolved_ai_key.get_secret_value() == "g-test"
     assert settings.resolved_ai_model == "gemini-2.5-pro"
     assert "generativelanguage" in settings.resolved_ai_base_url
+    assert settings.resolved_ai_reasoning_effort is None  # openai-only default
 
     clean_env.delenv("AI_MODEL")
     clean_env.setenv("AI_PROVIDER", "claude")

@@ -90,6 +90,10 @@ class Settings(BaseSettings):
     ai_provider: Literal["openai", "gemini", "claude"] = "openai"
     ai_model: str | None = None  # blank = the provider's default below
     ai_base_url: str | None = None  # override for other compatible providers
+    # Reasoning models (gpt-5 family) spend hidden "thinking" tokens that cost
+    # credits; "low" keeps answers good while cutting that spend. Blank = "low"
+    # on openai, unset elsewhere.
+    ai_reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
     ai_max_output_tokens: int = 700
     ai_requests_per_minute: int = 4
     ai_personality_file: str = "content/personality.md"
@@ -120,6 +124,12 @@ class Settings(BaseSettings):
         return getattr(self, AI_PROVIDER_DEFAULTS[self.ai_provider][2])
 
     @property
+    def resolved_ai_reasoning_effort(self) -> str | None:
+        if self.ai_reasoning_effort:
+            return self.ai_reasoning_effort
+        return "low" if self.ai_provider == "openai" else None
+
+    @property
     def ai_configured(self) -> bool:
         return self.resolved_ai_key is not None
 
@@ -137,6 +147,7 @@ class Settings(BaseSettings):
         "anthropic_api_key",
         "ai_model",
         "ai_base_url",
+        "ai_reasoning_effort",
         "google_sheets_credentials",
         "google_sheets_spreadsheet_id",
         mode="before",

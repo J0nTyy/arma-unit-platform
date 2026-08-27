@@ -122,13 +122,21 @@ class UnitBot(commands.Bot):
         if settings.ai_configured:
             # Claude speaks its own protocol (official Anthropic SDK); openai
             # and gemini share the OpenAI-compatible client.
-            client_class = ClaudeChatClient if settings.ai_provider == "claude" else AIChatClient
-            self.ai_client = client_class(
-                api_key=settings.resolved_ai_key.get_secret_value(),  # type: ignore[union-attr]
-                model=settings.resolved_ai_model,
-                base_url=settings.resolved_ai_base_url,
-                max_output_tokens=settings.ai_max_output_tokens,
-            )
+            if settings.ai_provider == "claude":
+                self.ai_client = ClaudeChatClient(
+                    api_key=settings.resolved_ai_key.get_secret_value(),  # type: ignore[union-attr]
+                    model=settings.resolved_ai_model,
+                    base_url=settings.resolved_ai_base_url,
+                    max_output_tokens=settings.ai_max_output_tokens,
+                )
+            else:
+                self.ai_client = AIChatClient(
+                    api_key=settings.resolved_ai_key.get_secret_value(),  # type: ignore[union-attr]
+                    model=settings.resolved_ai_model,
+                    base_url=settings.resolved_ai_base_url,
+                    max_output_tokens=settings.ai_max_output_tokens,
+                    reasoning_effort=settings.resolved_ai_reasoning_effort,
+                )
             self.assistant_service = AssistantService(
                 self.ai_client,
                 build_default_registry(),
